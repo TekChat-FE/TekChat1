@@ -18,7 +18,7 @@ export class RoomService {
     return await authService.getAuthenticatedClient();
   }
 
-  async createRoom(roomName: string): Promise<string> {
+  async createRoomWithType(roomName: string, isGroup: boolean): Promise<string> {
     if (!roomName.trim()) {
       throw new Error("Tên phòng không được để trống.");
     }
@@ -27,12 +27,13 @@ export class RoomService {
       const client = await this.getClient();
       const roomOptions: ICreateRoomOpts = {
         name: roomName,
-        preset: Preset.PrivateChat,
+        preset: isGroup ? Preset.PublicChat : Preset.PrivateChat, // PublicChat cho nhóm, PrivateChat cho liên hệ
         visibility: Visibility.Private,
+        invite: isGroup ? [] : undefined, // Không mời ai nếu là nhóm
       };
 
       const response = await client.createRoom(roomOptions);
-      console.log("✅ Phòng mới được tạo:", response.room_id);
+      console.log(`✅ Phòng ${isGroup ? "nhóm" : "liên hệ"} được tạo:`, response.room_id);
       return response.room_id;
     } catch (error) {
       console.error("❌ Lỗi khi tạo phòng:", error);

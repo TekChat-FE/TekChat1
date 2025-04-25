@@ -1,6 +1,5 @@
 import React, { useRef, useEffect } from 'react';
 import { MatrixCall, CallEvent } from 'matrix-js-sdk';
-import useCall from '@/app/hooks/useCall';
 
 interface VideoFeedProps {
     call: MatrixCall | null;
@@ -10,7 +9,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ call }) => {
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const remoteVideoRef = useRef<HTMLVideoElement>(null);
     const currentStreamId = useRef<string | null>(null);
-    const {} = useCall();
 
     useEffect(() => {
         if (!call) return;
@@ -55,12 +53,23 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ call }) => {
     }, [call]);
 
     return (
-        <div className="flex-grow flex items-center justify-center space-x-4">
-            <div className="w-1/2 h-3/4 bg-gray-600 rounded-lg overflow-hidden">
-                <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
+        <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-full h-full">
+                <video
+                    ref={remoteVideoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                />
             </div>
-            <div className="w-1/4 h-1/4 bg-gray-600 rounded-lg overflow-hidden absolute bottom-10 right-10">
-                <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+            <div className="absolute top-4 right-4 w-32 h-24 bg-gray-600 rounded-lg overflow-hidden">
+                <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover"
+                />
             </div>
         </div>
     );

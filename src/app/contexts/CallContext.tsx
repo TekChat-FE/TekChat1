@@ -47,10 +47,20 @@ export const CallProvider: React.FC<{ matrixClient: MatrixClient | null; childre
     };
 
     const handleStateUpdate = (callState: string) => {
-      setState((prev) => ({ ...prev, callState }));
+      setState((prev) => {
+        // Reset callDuration when the call is not yet fully connected
+        const isFullyConnected = callState === 'connected' && (prev.activeCall?.getRemoteFeeds()?.length ?? 0) > 0;
+        return {
+          ...prev,
+          callState,
+          callDuration: isFullyConnected ? prev.callDuration : 0, // Reset duration until fully connected
+        };
+      });
     };
 
+    console.log('Registering call duration listener');
     const removeDurationListener = callService.onCallDuration(handleDurationUpdate);
+    console.log('Registering call state listener');
     const removeStateListener = callService.onCallState(handleStateUpdate);
 
     return () => {
@@ -89,6 +99,8 @@ export const CallProvider: React.FC<{ matrixClient: MatrixClient | null; childre
         callerName,
         receiverName,
         callType: call.type as CallType,
+        callDuration: 0, // Reset duration on incoming call
+        callState: 'incoming', // Initial state for incoming call
         isCaller: false,
       }));
 
@@ -117,6 +129,7 @@ export const CallProvider: React.FC<{ matrixClient: MatrixClient | null; childre
       });
     };
 
+    console.log('Registering incoming call listener');
     const removeListener = callService.onIncomingCall(handleIncomingCall);
     return () => removeListener();
   }, [matrixClient, callService]);
@@ -151,6 +164,8 @@ export const CallProvider: React.FC<{ matrixClient: MatrixClient | null; childre
         callType: type,
         callerName,
         receiverName,
+        callDuration: 0, // Reset duration on call start
+        callState: 'initiating', // Initial state for outgoing call
         isCaller: true,
         error: null,
       }));
@@ -178,6 +193,8 @@ export const CallProvider: React.FC<{ matrixClient: MatrixClient | null; childre
         activeCall: call,
         incomingCall: null,
         callType: call.type as CallType,
+        callDuration: 0, // Reset duration on call answer
+        callState: 'answering', // Initial state for answering
         error: null,
       }));
     } catch (err) {
@@ -203,6 +220,8 @@ export const CallProvider: React.FC<{ matrixClient: MatrixClient | null; childre
     setState((prev) => ({
       ...prev,
       incomingCall: null,
+      callDuration: 0, // Reset duration on call rejection
+      callState: '',
     }));
   };
 
