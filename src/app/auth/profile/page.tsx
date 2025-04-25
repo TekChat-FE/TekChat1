@@ -39,6 +39,7 @@ const ProfilePage = () => {
           displayName: profile.displayname || userId,
           userId: userId,
         });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         console.error('Error loading user information:', err);
         setError(err.message || 'Unable to load user information. Please try again.');
@@ -57,6 +58,7 @@ const ProfilePage = () => {
     try {
       await authService.logout();
       router.push('/auth/login');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Error during logout:', err);
       setError(err.message || 'Logout failed. Please try again.');
@@ -99,6 +101,7 @@ const ProfilePage = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showConfirmModal]);
 
   if (loading) {
@@ -244,7 +247,7 @@ const ProfilePage = () => {
 
           {/* Slogan */}
           <p className="text-center text-sm text-gray-600 font-medium">
-            "Connecting hearts, starting with you"
+            Connecting hearts, starting with you
           </p>
         </div>
       </div>

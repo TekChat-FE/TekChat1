@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { MatrixClient } from "matrix-js-sdk";
 import { MATRIX_CONFIG } from "@/app/services/utils/config";
@@ -34,14 +35,13 @@ class AuthService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          {
-            M_FORBIDDEN: "Invalid username or password.",
-            M_LIMIT_EXCEEDED: "Too many requests. Please try again later.",
-            M_USER_DEACTIVATED: "Your account has been deactivated.",
-          }[errorData.errcode] || "Login failed. Please check your credentials."
-        );
+        const errorData: { errcode: string } = await response.json();
+        const errorMessages: { [key: string]: string } = {
+          M_FORBIDDEN: "Invalid username or password.",
+          M_LIMIT_EXCEEDED: "Too many requests. Please try again later.",
+          M_USER_DEACTIVATED: "Your account has been deactivated.",
+        };
+        throw new Error(errorMessages[errorData.errcode] || "Login failed. Please check your credentials.");
       }
 
       const { access_token, user_id } = await response.json();
@@ -52,7 +52,7 @@ class AuthService {
         localStorage.setItem("matrix_homeserver", baseUrl);
       }
 
-      await MatrixClientManager.initialize(access_token, user_id, baseUrl);
+      await MatrixClientManager.initialize(access_token, user_id);
       console.log("✅ Login successful:", user_id);
     } catch (error: any) {
       console.error("❌ Error during login:", error);
@@ -80,12 +80,11 @@ class AuthService {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(
-          {
-            M_UNKNOWN_TOKEN: "Invalid or expired Access Token.",
-            M_LIMIT_EXCEEDED: "Too many requests. Please try again later.",
-          }[errorData.errcode] || "Invalid Access Token."
-        );
+        const errorMessages: { [key: string]: string } = {
+          M_UNKNOWN_TOKEN: "Invalid or expired Access Token.",
+          M_LIMIT_EXCEEDED: "Too many requests. Please try again later.",
+        };
+        throw new Error(errorMessages[String(errorData.errcode)] || "Invalid Access Token.");
       }
 
       const { user_id } = await response.json();
@@ -97,7 +96,7 @@ class AuthService {
       localStorage.setItem("userId", user_id);
       localStorage.setItem("matrix_homeserver", baseUrl);
 
-      await MatrixClientManager.initialize(accessToken, user_id, baseUrl);
+      await MatrixClientManager.initialize(accessToken, user_id);
       console.log("✅ Login with Access Token successful:", user_id);
     } catch (error: any) {
       console.error("❌ Error during login with Access Token:", error);
@@ -117,6 +116,7 @@ class AuthService {
 
     const accessToken = localStorage.getItem("accessToken");
     const userId = localStorage.getItem("userId");
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const baseUrl = localStorage.getItem("matrix_homeserver") || MATRIX_CONFIG.BASE_URL;
 
     if (!accessToken || !userId) {
@@ -124,7 +124,7 @@ class AuthService {
     }
 
     try {
-      const client = await MatrixClientManager.initialize(accessToken, userId, baseUrl);
+      const client = await MatrixClientManager.initialize(accessToken, userId);
       console.log("MatrixClient initialized:", client.getUserId(), client.getSyncState());
       return client;
     } catch (error) {
@@ -142,11 +142,9 @@ class AuthService {
       if (typeof window === "undefined") return;
 
       const accessToken = localStorage.getItem("accessToken");
-      const baseUrl = localStorage.getItem("matrix_homeserver") || MATRIX_CONFIG.BASE_URL;
-
-      if (accessToken && baseUrl) {
+      if (accessToken) {
         // Call Matrix /logout endpoint
-        await fetch(`${baseUrl}/_matrix/client/r0/logout`, {
+        await fetch(`${MATRIX_CONFIG.BASE_URL}/_matrix/client/r0/logout`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${accessToken}`,

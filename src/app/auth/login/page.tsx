@@ -108,6 +108,7 @@ export default function LoginPage() {
         localStorage.setItem("loginSuccess", "true");
       }
       router.push("/roomlist");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || err.message || "Login failed. Please check your information!";
       setError(errorMessage);
@@ -118,20 +119,12 @@ export default function LoginPage() {
 
   // Handle back navigation
   const handleBack = () => {
-    router.back();
+    router.push('/'); 
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
-      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8 bg-white rounded-xl shadow-2xl overflow-hidden">
-        {/* Illustration */}
-        <div className="hidden md:block">
-          <img
-            src="https://png.pngtree.com/png-clipart/20190904/original/pngtree-cartoon-info-icon-download-png-image_4489937.jpg"
-            alt="Chat illustration"
-            className="h-full w-full object-cover rounded-l-xl"
-          />
-        </div>
+      <div className="w-full max-w-4xl grid grid-cols-1 gap-8 bg-white rounded-xl shadow-2xl overflow-hidden">
 
         {/* Form Section */}
         <div className="p-8 space-y-8">
@@ -174,7 +167,7 @@ export default function LoginPage() {
               <div>
                 <label
                   htmlFor="accessToken"
-                  className="block text-sm font-medium text-gray-700 mb-1 flex items-center"
+                  className="text-sm font-medium text-gray-700 mb-1 flex items-center"
                 >
                   <KeyIcon className="h-5 w-5 mr-2 text-gray-400" />
                   Access Token
@@ -206,7 +199,7 @@ export default function LoginPage() {
                 <div>
                   <label
                     htmlFor="username"
-                    className="block text-sm font-medium text-gray-700 mb-1 flex items-center"
+                    className="text-sm font-medium text-gray-700 mb-1 flex items-center"
                   >
                     <UserIcon className="h-5 w-5 mr-2 text-gray-400" />
                     Username
@@ -225,7 +218,7 @@ export default function LoginPage() {
                 <div>
                   <label
                     htmlFor="password"
-                    className="block text-sm font-medium text-gray-700 mb-1 flex items-center"
+                    className="text-sm font-medium text-gray-700 mb-1 flex items-center"
                   >
                     <LockClosedIcon className="h-5 w-5 mr-2 text-gray-400" />
                     Password
