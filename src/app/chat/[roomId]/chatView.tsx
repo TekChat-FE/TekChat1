@@ -28,7 +28,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [roomName, setRoomName] = useState<string>('');
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [inviteUserId, setInviteUserId] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Chỉnh lại giá trị mặc định là false
   const [isRoomOwner, setIsRoomOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -146,18 +146,18 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     });
   };
 
+  const handleRetry = () => {
+    setError(null);
+    setLoading(true);
+    fetchRoomData().finally(() => setLoading(false));
+  };
+
   const handleStartVoiceCall = () => {
     startCall(roomId, 'voice');
   };
 
   const handleStartVideoCall = () => {
     startCall(roomId, 'video');
-  };
-
-  const handleRetry = () => {
-    setError(null);
-    setLoading(true);
-    fetchRoomData().finally(() => setLoading(false));
   };
 
   const currentUserId = matrixClient.getUserId();
@@ -168,8 +168,9 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 text-gray-800">
-      <div className="flex-1 flex flex-col">
+    <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
+      <div className="flex flex-col w-full max-w-md h-full bg-white shadow-lg">
+        {/* Nội dung khung chat */}
         <header className="bg-white shadow-md p-4 flex items-center justify-between">
           <div className="flex items-center">
             <button onClick={() => router.back()} className="text-gray-600 hover:text-gray-800 mr-3">
@@ -219,7 +220,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
             </button>
           </div>
         </header>
-
+  
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
@@ -246,7 +247,8 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
             <MessageList messages={messages} currentUserId={currentUserId} />
           </>
         )}
-
+  
+        {/* Footer - Only render when there is no active call */}
         {!state.activeCall && (
           <footer className="bg-white p-4 shadow-inner">
             <div className="flex items-center space-x-3">
@@ -275,18 +277,21 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           </footer>
         )}
       </div>
-
+  
       {isSidebarOpen && (
         <ChatSidebar
+          onClose={() => setIsSidebarOpen(false)}
+          isOpen={isSidebarOpen}
           members={members}
           inviteUserId={inviteUserId}
           setInviteUserId={setInviteUserId}
           isRoomOwner={isRoomOwner}
           onInviteMember={handleInviteMember}
           onDeleteRoom={handleDeleteRoom}
+          isGroup={false} // Đặt thành false nếu là contact
         />
       )}
-
+  
       <CallModal incomingCall={state.incomingCall} callerName={state.callerName} />
     </div>
   );

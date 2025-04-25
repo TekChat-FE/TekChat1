@@ -1,238 +1,166 @@
-
-
 'use client';
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import authService from '@/app/services/auth/authService';
-import roomService from '@/app/services/matrix/roomService';
-import chatService from '@/app/services/matrix/chatService';
-import { withErrorHandling } from '@/app/services/utils/withErrorHandling';
-import { ERROR_MESSAGES } from '@/app/services/utils/matrix';
-import { sortRoomsByTimestamp } from '@/app/services/utils/roomUtils';
-import Header from '@/app/components/common/Header';
-import Footer from '@/app/components/common/Footer';
-import ChatItem from '@/app/components/chat/ChatItem';
-import CreateRoomModal from '@/app/components/room/CreateRoomModal';
-import { MatrixEvent, Room } from 'matrix-js-sdk';
-import { RoomData } from '@/app/services/matrix/roomService';
 
-/**
- * RoomList component displays a list of chat rooms and handles room creation and new message updates.
- */
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import roomService from "@/app/services/matrix/roomService";
+import ChatItem from "@/app/components/chat/ChatItem";
+import Footer from "@/app/components/common/Footer";
+import CreateRoomModal from "@/app/components/room/CreateRoomModal";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { PlusCircle } from "lucide-react";
+
+interface Room {
+  roomId: string;
+  name: string;
+  lastMessage?: string;
+  timestamp?: string;
+  isGroup?: boolean;
+  sender?: string;
+}
+
 const RoomList: React.FC = () => {
-  const [rooms, setRooms] = useState<RoomData[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isClientReady, setIsClientReady] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
   const router = useRouter();
-  const okButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Check login status and client sync state
-  useEffect(() => {
-    const checkLoginAndSync = async () => {
-      try {
-        await authService.getAuthenticatedClient();
-        setIsClientReady(true);
-      } catch (err) {
-        console.error('Error checking login or syncing client:', err);
-        router.push('/auth/login');
-      }
-    };
-
-    checkLoginAndSync();
-  }, [router]);
-
-  // Check for login success message
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const loginSuccess = localStorage.getItem('loginSuccess');
-      if (loginSuccess === 'true') {
-        setShowSuccessModal(true);
-        localStorage.removeItem('loginSuccess'); // Clear flag
-      }
-    }
-  }, []);
-
-  // Focus on OK button and handle Enter/Esc keys
-  useEffect(() => {
-    if (showSuccessModal && okButtonRef.current) {
-      okButtonRef.current.focus();
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (showSuccessModal && (e.key === 'Enter' || e.key === 'Escape')) {
-        setShowSuccessModal(false);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showSuccessModal]);
-
-  // Load rooms and messages
   const loadRooms = useCallback(async () => {
-    if (!isClientReady) return;
     setLoading(true);
-    await withErrorHandling(
-      async () => {
-        console.log('Starting to fetch room list...');
-        const joinedRooms = await roomService.fetchJoinedRooms();
-        console.log('Room list:', joinedRooms);
-        setRooms(joinedRooms);
-      },
-      ERROR_MESSAGES.FETCH_ROOMS_FAILED,
-      setError
-    ).finally(() => setLoading(false));
-  }, [isClientReady]);
-
-  // Update room list with new message data
-  const updateRoomList = useCallback((updatedRoom: Partial<RoomData>) => {
-    setRooms((prevRooms) => {
-      const updatedRooms = prevRooms.map((r) =>
-        r.roomId === updatedRoom.roomId ? { ...r, ...updatedRoom } : r
-      );
-      return sortRoomsByTimestamp(updatedRooms);
-    });
+    try {
+      const data = await roomService.fetchJoinedRooms();
+      setRooms(data);
+    } catch (error) {
+      console.error("Lỗi khi tải danh sách phòng:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Handle room creation
-  const handleCreateRoom = useCallback(
-    async (roomName: string) => {
-      await withErrorHandling(
-        async () => {
-          await roomService.createRoom(roomName);
-          alert('Room created successfully!');
-          await loadRooms();
-        },
-        ERROR_MESSAGES.CREATE_ROOM_FAILED,
-        setError
-      );
-    },
-    [loadRooms]
+  useEffect(() => {
+    loadRooms();
+  }, [loadRooms]);
+
+
+  // const handleCreateRoom = async (roomName: string) => {
+  //   try {
+  //     const roomId = await roomService.createRoomWithType(roomName, true);
+  //     toast.success(`Phòng "${roomName}" đã được tạo thành công`, {
+  //       position: "top-center",
+  //       autoClose: 3000,
+  //       hideProgressBar: true,
+  //       closeOnClick: true,
+  //       pauseOnHover: true,
+  //       draggable: true,
+  //       progress: undefined,
+  //       className: "text-center text-lg font-semibold",
+  //     });
+  //     loadRooms();
+  //   } catch (error) {
+  //     console.error("Lỗi khi tạo phòng:", error);
+  //     toast.error("Không thể tạo phòng. Vui lòng thử lại!", {
+  //       position: "top-center",
+  //       autoClose: 3000,
+  //       hideProgressBar: true,
+  //       closeOnClick: true,
+  //       pauseOnHover: true,
+  //       draggable: true,
+  //       progress: undefined,
+  //       className: "text-center text-lg font-semibold",
+  //     });
+  //   }
+  // };
+
+  const filteredRooms = rooms.filter((room) =>
+    room.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Handle closing success modal
-  const handleCloseSuccessModal = () => {
-    setShowSuccessModal(false);
-  };
-
-  // Setup listeners for new messages
-  useEffect(() => {
-    if (!isClientReady) return;
-    loadRooms();
-
-    const setupListeners = async () => {
-      const client = await authService.getAuthenticatedClient();
-
-      const handleNewMessage = async (event: MatrixEvent, room?: Room) => {
-        if (!room) return;
-        const updatedRoom = await chatService.processNewMessage(event, room, client);
-        if (updatedRoom) {
-          updateRoomList(updatedRoom);
-        }
-      };
-
-      const removeMessageListener = await chatService.onNewMessage(handleNewMessage);
-      return removeMessageListener;
-    };
-
-    let cleanup: (() => void) | undefined;
-    setupListeners().then((removeListener) => {
-      cleanup = removeListener;
-    });
-
-    return () => {
-      if (cleanup) cleanup();
-    };
-  }, [isClientReady, loadRooms, updateRoomList]);
-
   return (
-    <div className="flex h-screen bg-white text-black">
-      <div className="w-1/4 flex flex-col h-full">
-        {/* Header */}
-        <Header onCreateRoomClick={() => setIsModalOpen(true)} />
+    <div className="flex flex-col h-screen bg-gray-100 max-w-md mx-auto">
+      <ToastContainer />
 
-        {/* Chat List */}
-        <div className="flex-1 overflow-y-auto">
-          {loading && <p className="text-gray-500 animate-pulse px-4">Loading room list...</p>}
-          {error && <p className="text-red-500 px-4">❌ {error}</p>}
-          {!loading && rooms.length === 0 && (
-            <p className="text-gray-500 px-4">No rooms available.</p>
-          )}
+      {/* Header */}
+      <header className="p-4 bg-white shadow-md flex items-center justify-between">
+        <button className="text-blue-500 text-sm font-medium">Edit</button>
+        <h1 className="text-lg font-semibold text-gray-800">Chats</h1>
+        <button onClick={() => setShowPopup(true)} className="text-blue-500">
+          <PlusCircle className="h-6 w-6" />
+        </button>
+      </header>
 
-          {!loading && isClientReady &&
-            rooms.map((room) => (
-              <ChatItem
-                key={room.roomId}
-                name={room.isGroup ? `Group: ${room.name}` : room.name}
-                lastMessage={room.lastMessage || 'No messages yet'}
-                timestamp={room.timestamp || 'N/A'}
-                sender={room.sender || 'N/A'}
-                isGroup={room.isGroup || false}
-                onClick={() => router.push(`/chat/${room.roomId}`)}
-              />
-            ))}
-        </div>
-
-        {/* Footer */}
-        <Footer />
+      {/* Search */}
+      <div className="p-3 bg-white shadow-sm">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search"
+          className="w-full px-5 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
-      {/* Main Section */}
-      <main className="flex-1 flex items-center justify-center bg-gray-100">
-        <p className="text-gray-500">Select a room to start chatting</p>
-      </main>
+      {/* Room List */}
+      <div className="flex-1 overflow-y-auto pb-24">
+        {loading ? (
+          <div className="flex justify-center items-center h-full">
+            <p className="text-gray-500">Đang tải...</p>
+          </div>
+        ) : filteredRooms.length > 0 ? (
+          filteredRooms.map((room) => (
+            <ChatItem
+              key={room.roomId}
+              avatar={undefined}
+              name={room.name}
+              sender={room.sender || "Unknown"}
+              lastMessage={room.lastMessage || "Không có tin nhắn"}
+              timestamp={room.timestamp}
+              isGroup={room.isGroup}
+              onClick={() => router.push(`/chat/${room.roomId}?isGroup=${room.isGroup}`)}
+            />
+          ))
+        ) : (
+          <div className="flex justify-center items-center h-full">
+            <p className="text-gray-500">Không có phòng nào.</p>
+          </div>
+        )}
+      </div>
 
-      {/* Create Room Modal */}
       <CreateRoomModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onCreate={handleCreateRoom}
+        isOpen={showPopup}
+        onClose={() => setShowPopup(false)}
+        onCreate={async (roomName, isGroup) => {
+          try {
+            await roomService.createRoomWithType(roomName, isGroup);
+            toast.success(`Room ${isGroup ? 'Group' : 'Contact'} Created Successfully !`, {
+              position: 'top-center',
+              autoClose: 3000,
+              hideProgressBar: true,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              progress: undefined,
+              className: 'text-center text-lg font-semibold',
+            });
+            loadRooms();
+          } catch (error) {
+            console.error('Lỗi khi tạo phòng:', error);
+            toast.error('Không thể tạo phòng. Vui lòng thử lại!', {
+              position: 'top-center',
+              autoClose: 3000,
+              hideProgressBar: true,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              progress: undefined,
+              className: 'text-center text-lg font-semibold',
+            });
+          }
+        }}
       />
 
-      {/* Success Modal */}
-      {showSuccessModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="success-modal-title"
-        >
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4 animate-fade-in">
-            <div className="flex items-center justify-center mb-4">
-              <svg
-                className="h-8 w-8 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <h3 id="success-modal-title" className="text-xl font-bold text-gray-900 text-center">
-              Login Successful
-            </h3>
-            <p className="mt-2 text-base text-gray-600 text-center">
-              You have logged in successfully.
-            </p>
-            <button
-              ref={okButtonRef}
-              onClick={handleCloseSuccessModal}
-              className="mt-6 w-full py-3 rounded-lg font-medium text-white bg-gray-900 hover:bg-gray-700 transition-colors duration-200"
-              aria-label="Close success dialog"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Footer */}
+      <Footer />
     </div>
   );
 };

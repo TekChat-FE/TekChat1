@@ -10,10 +10,13 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "framer-motion": "^12.9.1",
+    "lucide-react": "^0.503.0",
     "matrix-js-sdk": "^37.2.0",
     "next": "15.2.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-toastify": "^11.0.5",
     "video-call-js-sdk": "^2.0.36"
   },
   "devDependencies": {
