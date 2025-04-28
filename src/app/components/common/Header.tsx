@@ -1,18 +1,22 @@
-// Header.tsx
+'use client';
+
 import React from 'react';
+import { useTranslations } from 'next-intl';
 
 interface HeaderProps {
-  onCreateRoomClick: () => void; // Add a prop to handle the plus icon click
+  onCreateRoomClick: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ onCreateRoomClick }) => {
+  const t = useTranslations('Header');
+
   return (
     <div className="sticky top-0 bg-white dark:bg-black p-4 flex justify-between items-center border-b border-gray-200">
       <button className="text-blue-500 text-lg font-normal">
-        Edit
+        {t('edit')}
       </button>
 
-      <h1 className="text-xl font-semibold text-center">Chats</h1>
+      <h1 className="text-xl font-semibold text-center">{t('title')}</h1>
 
       <div className="flex gap-4">
         <button className="text-blue-500" onClick={onCreateRoomClick}>

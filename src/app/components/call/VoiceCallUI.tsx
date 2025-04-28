@@ -1,8 +1,12 @@
+'use client';
+
 import React, { useState } from 'react';
 import useCall from '@/app/hooks/useCall';
 import CallControls from './CallControls';
+import { useTranslations } from 'next-intl';
 
 const VoiceCallUI: React.FC = () => {
+  const t = useTranslations('CallUI');
   const { state, hangupCall } = useCall();
   const [isMicOn, setIsMicOn] = useState<boolean>(true);
   const [isSpeakerOn, setIsSpeakerOn] = useState<boolean>(true);
@@ -51,7 +55,6 @@ const VoiceCallUI: React.FC = () => {
 
   if (!state.activeCall || state.callType !== 'voice') return null;
 
-  // Check if the call is fully synchronized (connected state and remote feed present)
   const isFullyConnected =
     state.callState === 'connected' && state.activeCall.getRemoteFeeds().length > 0;
 
@@ -62,7 +65,6 @@ const VoiceCallUI: React.FC = () => {
         background: 'linear-gradient(135deg, #75e377 0%, #45d2db 100%)',
       }}
     >
-      {/* Avatar với hiệu ứng ring */}
       <div className="flex flex-col items-center justify-center flex-1">
         <div className="relative flex items-center justify-center">
           <span
@@ -82,14 +84,11 @@ const VoiceCallUI: React.FC = () => {
             }}
           />
           <div className="w-40 h-40 rounded-full bg-gray-300 shadow-lg overflow-hidden flex items-center justify-center z-10">
-            {/* Placeholder avatar (có thể thay bằng ảnh user) */}
           </div>
         </div>
-        {/* Tên người dùng */}
         <h2 className="mt-8 text-3xl font-normal text-white">
           {state.isCaller ? state.receiverName : state.callerName}
         </h2>
-        {/* Icon sóng + thời gian */}
         <div className="flex items-center justify-center mt-3">
           <svg width="32" height="20" viewBox="0 0 32 20" fill="none">
             <rect x="0" y="12" width="4" height="8" rx="2" fill="#fff" fillOpacity="0.4" />
@@ -101,15 +100,13 @@ const VoiceCallUI: React.FC = () => {
           <span className="text-white text-base ml-2">
             {isFullyConnected
               ? formatDuration(state.callDuration)
-              : 'Đang chờ kết nối...'}
+              : t('waitingForConnection')}
           </span>
         </div>
         {state.error && (
-          <p className="text-red-500 text-sm mt-1">{state.error}</p>
+          <p className="text-red-500 text-sm mt-1">{t('errorPlaceholder')}</p>
         )}
       </div>
-
-      {/* Call Controls */}
       <CallControls
         isMicOn={isMicOn}
         isSpeakerOn={isSpeakerOn}

@@ -1,9 +1,10 @@
+'use client';
 
-"use client";
-
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import authService from "@/app/services/auth/authService";
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useLocale } from '@/app/contexts/LocaleContext';
+import authService from '@/app/services/auth/authService';
 import {
   UserIcon,
   LockClosedIcon,
@@ -12,13 +13,15 @@ import {
   EyeIcon,
   EyeSlashIcon,
   ArrowLeftIcon,
-} from "@heroicons/react/24/outline";
+} from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [accessToken, setAccessToken] = useState("");
-  const [homeserver, setHomeserver] = useState("https://matrix.org");
+  const t = useTranslations('Login');
+  const { locale, setLocale } = useLocale();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [accessToken, setAccessToken] = useState('');
+  const [homeserver, setHomeserver] = useState('https://matrix.org');
   const [useAccessToken, setUseAccessToken] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +30,8 @@ export default function LoginPage() {
 
   // Load saved homeserver from localStorage
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedHomeserver = localStorage.getItem("matrix_homeserver");
+    if (typeof window !== 'undefined') {
+      const savedHomeserver = localStorage.getItem('matrix_homeserver');
       if (savedHomeserver) {
         setHomeserver(savedHomeserver);
       }
@@ -37,8 +40,8 @@ export default function LoginPage() {
 
   // Save homeserver to localStorage when changed
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("matrix_homeserver", homeserver);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('matrix_homeserver', homeserver);
     }
   }, [homeserver]);
 
@@ -51,16 +54,16 @@ export default function LoginPage() {
     useAccessToken: boolean
   ): string | null => {
     if (!homeserver.match(/^https?:\/\/[\w.-]+(:\d+)?$/)) {
-      return "Invalid Homeserver URL. Example: https://matrix.org";
+      return t('validation.invalidHomeserver');
     }
     if (useAccessToken) {
-      if (!accessToken.trim()) return "Access Token cannot be empty.";
+      if (!accessToken.trim()) return t('validation.emptyAccessToken');
       const tokenRegex = /^[A-Za-z0-9-_=]+$/;
-      if (!tokenRegex.test(accessToken)) return "Invalid Access Token format.";
+      if (!tokenRegex.test(accessToken)) return t('validation.invalidAccessToken');
     } else {
       const usernameRegex = /^@[\w.-]+:[\w.-]+$/;
-      if (!usernameRegex.test(username)) return "Invalid username (@username:homeserver).";
-      if (password.length < 8) return "Password must be at least 8 characters.";
+      if (!usernameRegex.test(username)) return t('validation.invalidUsername');
+      if (password.length < 8) return t('validation.shortPassword');
     }
     return null;
   };
@@ -70,9 +73,9 @@ export default function LoginPage() {
     const checkLoginStatus = async () => {
       try {
         await authService.getAuthenticatedClient();
-        router.push("/roomlist");
+        router.push('/roomlist');
       } catch (err) {
-        console.log("Not logged in or token expired, displaying login form.", err);
+        console.log('Not logged in or token expired, displaying login form.', err);
       }
     };
     checkLoginStatus();
@@ -104,13 +107,13 @@ export default function LoginPage() {
         await authService.login(homeserver, username, password);
       }
       // Save success message flag to localStorage
-      if (typeof window !== "undefined") {
-        localStorage.setItem("loginSuccess", "true");
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('loginSuccess', 'true');
       }
-      router.push("/roomlist");
+      router.push('/roomlist');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || "Login failed. Please check your information!";
+      const errorMessage = err.response?.data?.error || err.message || t('validation.loginFailed');
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -119,18 +122,36 @@ export default function LoginPage() {
 
   // Handle back navigation
   const handleBack = () => {
-    router.push('/'); 
+    router.push('/');
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
       <div className="w-full max-w-4xl grid grid-cols-1 gap-8 bg-white rounded-xl shadow-2xl overflow-hidden">
+        {/* Header */}
+        <header className="p-6">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">ChatSphere</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <select
+                value={locale}
+                onChange={(e) => setLocale(e.target.value)}
+                className="px-2 py-1 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              >
+                <option value="en">English</option>
+                <option value="vi">Tiếng Việt</option>
+              </select>
+            </div>
+          </div>
+        </header>
 
         {/* Form Section */}
         <div className="p-8 space-y-8">
           <div className="text-center">
-            <h2 className="text-3xl font-bold text-gray-900">Log in to ChatSphere</h2>
-            <p className="mt-2 text-sm text-gray-600">Connect with friends and community</p>
+            <h2 className="text-3xl font-bold text-gray-900">{t('title')}</h2>
+            <p className="mt-2 text-sm text-gray-600">{t('description')}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -141,24 +162,24 @@ export default function LoginPage() {
                 onClick={() => setUseAccessToken(false)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   !useAccessToken
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
                 aria-pressed={!useAccessToken}
               >
-                Username/Password
+                {t('usernamePassword')}
               </button>
               <button
                 type="button"
                 onClick={() => setUseAccessToken(true)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   useAccessToken
-                    ? "bg-gray-900 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
                 aria-pressed={useAccessToken}
               >
-                Access Token
+                {t('accessToken')}
               </button>
             </div>
 
@@ -170,27 +191,27 @@ export default function LoginPage() {
                   className="text-sm font-medium text-gray-700 mb-1 flex items-center"
                 >
                   <KeyIcon className="h-5 w-5 mr-2 text-gray-400" />
-                  Access Token
+                  {t('accessTokenLabel')}
                 </label>
                 <input
                   id="accessToken"
                   type="text"
-                  placeholder="Enter Access Token"
+                  placeholder={t('accessTokenPlaceholder')}
                   value={accessToken}
                   onChange={(e) => setAccessToken(e.target.value)}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                   required
-                  aria-describedby={error ? "error-message" : undefined}
+                  aria-describedby={error ? 'error-message' : undefined}
                 />
                 <p className="mt-2 text-xs text-gray-500">
-                  Get Access Token from Element: Settings → Help & About → Access Token.{" "}
+                  {t('accessTokenHelp')}{' '}
                   <a
                     href="https://matrix.org/docs/guides/using-access-tokens/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-gray-600 hover:underline"
                   >
-                    Learn more
+                    {t('learnMore')}
                   </a>
                 </p>
               </div>
@@ -202,17 +223,17 @@ export default function LoginPage() {
                     className="text-sm font-medium text-gray-700 mb-1 flex items-center"
                   >
                     <UserIcon className="h-5 w-5 mr-2 text-gray-400" />
-                    Username
+                    {t('usernameLabel')}
                   </label>
                   <input
                     id="username"
                     type="text"
-                    placeholder="@user:matrix.org"
+                    placeholder={t('usernamePlaceholder')}
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                     required
-                    aria-describedby={error ? "error-message" : undefined}
+                    aria-describedby={error ? 'error-message' : undefined}
                   />
                 </div>
                 <div>
@@ -221,24 +242,24 @@ export default function LoginPage() {
                     className="text-sm font-medium text-gray-700 mb-1 flex items-center"
                   >
                     <LockClosedIcon className="h-5 w-5 mr-2 text-gray-400" />
-                    Password
+                    {t('passwordLabel')}
                   </label>
                   <div className="relative">
                     <input
                       id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder={t('passwordPlaceholder')}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                       required
-                      aria-describedby={error ? "error-message" : undefined}
+                      aria-describedby={error ? 'error-message' : undefined}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                     >
                       {showPassword ? (
                         <EyeSlashIcon className="h-5 w-5" />
@@ -270,10 +291,10 @@ export default function LoginPage() {
                 disabled={loading}
                 className={`w-full py-3 rounded-lg font-medium text-white transition-colors duration-200 flex items-center justify-center gap-2 ${
                   loading
-                    ? "bg-gray-400 cursor-not-allowed"
-                    : "bg-gray-900 hover:bg-gray-700"
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gray-900 hover:bg-gray-700'
                 }`}
-                aria-label="Log in to ChatSphere"
+                aria-label={t('loginButton')}
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -297,12 +318,12 @@ export default function LoginPage() {
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       />
                     </svg>
-                    Logging in...
+                    {t('loggingIn')}
                   </span>
                 ) : (
                   <>
                     <ArrowRightOnRectangleIcon className="h-5 w-5" />
-                    Log in
+                    {t('loginButton')}
                   </>
                 )}
               </button>
@@ -310,19 +331,19 @@ export default function LoginPage() {
                 type="button"
                 onClick={handleBack}
                 className="w-full py-3 rounded-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors duration-200 flex items-center justify-center gap-2"
-                aria-label="Go back to previous page"
+                aria-label={t('back')}
               >
                 <ArrowLeftIcon className="h-5 w-5" />
-                Back
+                {t('back')}
               </button>
             </div>
           </form>
 
           {/* Footer */}
           <p className="text-center text-sm text-gray-600">
-            Don&apos;t have an account?{" "}
+            {t('signupPrompt')}{' '}
             <a href="/signup" className="text-gray-600 hover:text-gray-800 font-medium">
-              Sign up now
+              {t('signupLink')}
             </a>
           </p>
         </div>
