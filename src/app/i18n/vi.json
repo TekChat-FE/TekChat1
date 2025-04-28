@@ -1,0 +1,128 @@
+{
+  "Home": {
+    "title": "Kết nối ngay với ChatSphere",
+    "description": "Trải nghiệm giao tiếp mượt mà với bạn bè và đội nhóm bằng nền tảng chat hiện đại của chúng tôi.",
+    "login": "Đăng nhập",
+    "features": "Tính năng",
+    "support": "Hỗ trợ",
+    "chatsphere": "ChatSphere",
+    "chatDemo": {
+      "message1": "Chào, mọi chuyện thế nào?",
+      "message2": "Tuyệt! Còn bạn thì sao?"
+    }
+  },
+  "Profile": {
+    "title": "Hồ sơ của bạn",
+    "manageInfo": "Quản lý thông tin cá nhân của bạn",
+    "logout": "Đăng xuất",
+    "confirmLogout": "Xác nhận đăng xuất",
+    "confirmMessage": "Bạn có chắc chắn muốn đăng xuất không?",
+    "errorNoUserId": "Không thể lấy ID người dùng.",
+    "errorLoadUserInfo": "Không thể tải thông tin người dùng. Vui lòng thử lại.",
+    "errorLogout": "Đăng xuất thất bại. Vui lòng thử lại.",
+    "loading": "Đang tải...",
+    "loggingOut": "Đang đăng xuất...",
+    "thankYou": "Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!",
+    "back": "Quay lại",
+    "slogan": "Kết nối trái tim, bắt đầu từ bạn",
+    "cancel": "Hủy",
+    "confirm": "Xác nhận",
+    "languageLabel": "Ngôn ngữ:"
+  },
+  "Login": {
+    "title": "Đăng nhập vào ChatSphere",
+    "description": "Kết nối với bạn bè và cộng đồng",
+    "usernamePassword": "Tên người dùng/Mật khẩu",
+    "accessToken": "Mã truy cập",
+    "accessTokenLabel": "Mã truy cập",
+    "accessTokenPlaceholder": "Nhập mã truy cập",
+    "accessTokenHelp": "Lấy mã truy cập từ Element: Cài đặt → Trợ giúp & Thông tin → Mã truy cập.",
+    "learnMore": "Tìm hiểu thêm",
+    "usernameLabel": "Tên người dùng",
+    "usernamePlaceholder": "@user:matrix.org",
+    "passwordLabel": "Mật khẩu",
+    "passwordPlaceholder": "••••••••",
+    "showPassword": "Hiển thị mật khẩu",
+    "hidePassword": "Ẩn mật khẩu",
+    "loggingIn": "Đang đăng nhập...",
+    "loginButton": "Đăng nhập",
+    "back": "Quay lại",
+    "signupPrompt": "Bạn chưa có tài khoản?",
+    "signupLink": "Đăng ký ngay",
+    "validation": {
+      "invalidHomeserver": "URL Homeserver không hợp lệ. Ví dụ: https://matrix.org",
+      "emptyAccessToken": "Mã truy cập không được để trống.",
+      "invalidAccessToken": "Định dạng mã truy cập không hợp lệ.",
+      "invalidUsername": "Tên người dùng không hợp lệ (@username:homeserver).",
+      "shortPassword": "Mật khẩu phải có ít nhất 8 ký tự.",
+      "loginFailed": "Đăng nhập thất bại. Vui lòng kiểm tra thông tin của bạn!"
+    }
+  },
+  "RoomList": {
+    "edit": "Chỉnh sửa",
+    "title": "Cuộc trò chuyện",
+    "searchPlaceholder": "Tìm kiếm",
+    "loading": "Đang tải...",
+    "noRooms": "Không có phòng nào.",
+    "createRoomSuccess": "Phòng {type} đã được tạo thành công!",
+    "createRoomSuccessTypeGroup": "Nhóm",
+    "createRoomSuccessTypeContact": "Liên hệ",
+    "createRoomError": "Không thể tạo phòng. Vui lòng thử lại!"
+  },
+  "Footer": {
+    "contacts": "Danh bạ",
+    "chats": "Cuộc trò chuyện",
+    "settings": "Cài đặt"
+  },
+  "Header": {
+    "edit": "Chỉnh sửa",
+    "title": "Cuộc trò chuyện"
+  },
+  "CreateRoomModal": {
+    "title": "Tạo Phòng Mới",
+    "roomNamePlaceholder": "Nhập tên phòng...",
+    "newContactButton": "Liên hệ mới",
+    "newGroupButton": "Nhóm mới",
+    "errorEmptyRoomName": "Vui lòng nhập tên phòng.",
+    "cancelButton": "Hủy",
+    "createButton": "Tạo"
+  },
+  "ChatSidebar": {
+    "title": "Thành viên",
+    "userIdPlaceholder": "Nhập User ID",
+    "addMemberButton": "Thêm thành viên",
+    "deleteRoomButton": "Xóa phòng",
+    "closeButton": "Đóng"
+  },
+  "CallModal": {
+    "incomingVideoCall": "Cuộc gọi video đến từ {callerName}",
+    "incomingVoiceCall": "Cuộc gọi thoại đến từ {callerName}",
+    "acceptButton": "Chấp nhận",
+    "rejectButton": "Từ chối"
+  },
+  "CallControls": {
+    "speaker": {
+      "turnOffAriaLabel": "Tắt loa",
+      "turnOnAriaLabel": "Bật loa",
+      "label": "loa"
+    },
+    "mic": {
+      "muteAriaLabel": "Tắt mic",
+      "unmuteAriaLabel": "Bật mic",
+      "label": "tắt tiếng"
+    },
+    "camera": {
+      "turnOffAriaLabel": "Tắt camera",
+      "turnOnAriaLabel": "Bật camera",
+      "label": "video"
+    },
+    "end": {
+      "ariaLabel": "Kết thúc cuộc gọi",
+      "label": "kết thúc"
+    }
+  },
+  "CallUI": {
+    "waitingForConnection": "Đang chờ kết nối...",
+    "errorPlaceholder": "Có lỗi xảy ra"
+  }
+}

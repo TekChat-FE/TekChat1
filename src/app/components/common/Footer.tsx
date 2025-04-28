@@ -1,25 +1,24 @@
-// Footer.tsx
 'use client';
 
 import React from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 const Footer = () => {
+  const t = useTranslations('Footer');
   const router = useRouter();
-  const pathname = usePathname(); // Lấy đường dẫn hiện tại
+  const pathname = usePathname();
 
   const handleNavigate = (path: string) => {
     router.push(path);
   };
 
-  // Định nghĩa các route
   const ROUTES = {
     CONTACTS: '/contacts',
     CHATS: '/roomlist',
     SETTINGS: 'auth/profile',
   } as const;
 
-  // Xác định trạng thái active dựa trên pathname
   const isActive = (path: string) => pathname === path;
 
   return (
@@ -41,7 +40,7 @@ const Footer = () => {
           />
         </svg>
         <span className={`text-sm mt-1 ${isActive(ROUTES.CONTACTS) ? 'text-blue-500' : 'text-gray-500'}`}>
-          Contacts
+          {t('contacts')}
         </span>
       </button>
 
@@ -62,7 +61,7 @@ const Footer = () => {
           />
         </svg>
         <span className={`text-sm mt-1 ${isActive(ROUTES.CHATS) ? 'text-blue-500' : 'text-gray-500'}`}>
-          Chats
+          {t('chats')}
         </span>
       </button>
 
@@ -83,7 +82,7 @@ const Footer = () => {
           />
         </svg>
         <span className={`text-sm mt-1 ${isActive(ROUTES.SETTINGS) ? 'text-blue-500' : 'text-gray-500'}`}>
-          Settings
+          {t('settings')}
         </span>
       </button>
     </div>

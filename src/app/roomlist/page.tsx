@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from 'next-intl';
 import roomService from "@/app/services/matrix/roomService";
 import ChatItem from "@/app/components/chat/ChatItem";
 import Footer from "@/app/components/common/Footer";
@@ -20,6 +21,7 @@ interface Room {
 }
 
 const RoomList: React.FC = () => {
+  const t = useTranslations('RoomList');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -42,36 +44,6 @@ const RoomList: React.FC = () => {
     loadRooms();
   }, [loadRooms]);
 
-
-  // const handleCreateRoom = async (roomName: string) => {
-  //   try {
-  //     const roomId = await roomService.createRoomWithType(roomName, true);
-  //     toast.success(`Phòng "${roomName}" đã được tạo thành công`, {
-  //       position: "top-center",
-  //       autoClose: 3000,
-  //       hideProgressBar: true,
-  //       closeOnClick: true,
-  //       pauseOnHover: true,
-  //       draggable: true,
-  //       progress: undefined,
-  //       className: "text-center text-lg font-semibold",
-  //     });
-  //     loadRooms();
-  //   } catch (error) {
-  //     console.error("Lỗi khi tạo phòng:", error);
-  //     toast.error("Không thể tạo phòng. Vui lòng thử lại!", {
-  //       position: "top-center",
-  //       autoClose: 3000,
-  //       hideProgressBar: true,
-  //       closeOnClick: true,
-  //       pauseOnHover: true,
-  //       draggable: true,
-  //       progress: undefined,
-  //       className: "text-center text-lg font-semibold",
-  //     });
-  //   }
-  // };
-
   const filteredRooms = rooms.filter((room) =>
     room.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -82,8 +54,8 @@ const RoomList: React.FC = () => {
 
       {/* Header */}
       <header className="p-4 bg-white shadow-md flex items-center justify-between">
-        <button className="text-blue-500 text-sm font-medium">Edit</button>
-        <h1 className="text-lg font-semibold text-gray-800">Chats</h1>
+        <button className="text-blue-500 text-sm font-medium">{t('edit')}</button>
+        <h1 className="text-lg font-semibold text-gray-800">{t('title')}</h1>
         <button onClick={() => setShowPopup(true)} className="text-blue-500">
           <PlusCircle className="h-6 w-6" />
         </button>
@@ -95,7 +67,7 @@ const RoomList: React.FC = () => {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search"
+          placeholder={t('searchPlaceholder')}
           className="w-full px-5 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
@@ -104,7 +76,7 @@ const RoomList: React.FC = () => {
       <div className="flex-1 overflow-y-auto pb-24">
         {loading ? (
           <div className="flex justify-center items-center h-full">
-            <p className="text-gray-500">Đang tải...</p>
+            <p className="text-gray-500">{t('loading')}</p>
           </div>
         ) : filteredRooms.length > 0 ? (
           filteredRooms.map((room) => (
@@ -121,7 +93,7 @@ const RoomList: React.FC = () => {
           ))
         ) : (
           <div className="flex justify-center items-center h-full">
-            <p className="text-gray-500">Không có phòng nào.</p>
+            <p className="text-gray-500">{t('noRooms')}</p>
           </div>
         )}
       </div>
@@ -132,20 +104,25 @@ const RoomList: React.FC = () => {
         onCreate={async (roomName, isGroup) => {
           try {
             await roomService.createRoomWithType(roomName, isGroup);
-            toast.success(`Room ${isGroup ? 'Group' : 'Contact'} Created Successfully !`, {
-              position: 'top-center',
-              autoClose: 3000,
-              hideProgressBar: true,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-              progress: undefined,
-              className: 'text-center text-lg font-semibold',
-            });
+            toast.success(
+              t('createRoomSuccess', {
+                type: isGroup ? t('createRoomSuccessTypeGroup') : t('createRoomSuccessTypeContact')
+              }),
+              {
+                position: 'top-center',
+                autoClose: 3000,
+                hideProgressBar: true,
+                closeOnClick: true,
+                pauseOnHover: true,
+                draggable: true,
+                progress: undefined,
+                className: 'text-center text-lg font-semibold',
+              }
+            );
             loadRooms();
           } catch (error) {
             console.error('Lỗi khi tạo phòng:', error);
-            toast.error('Không thể tạo phòng. Vui lòng thử lại!', {
+            toast.error(t('createRoomError'), {
               position: 'top-center',
               autoClose: 3000,
               hideProgressBar: true,

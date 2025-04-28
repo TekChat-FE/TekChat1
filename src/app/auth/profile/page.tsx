@@ -1,8 +1,8 @@
-
 'use client';
-
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import { useLocale } from '@/app/contexts/LocaleContext';
 import authService from '@/app/services/auth/authService';
 import { MatrixClient } from 'matrix-js-sdk';
 import Footer from '@/app/components/common/Footer';
@@ -14,6 +14,8 @@ import {
 } from '@heroicons/react/24/outline';
 
 const ProfilePage = () => {
+  const t = useTranslations('Profile');
+  const { locale, setLocale } = useLocale();
   const router = useRouter();
   const [userInfo, setUserInfo] = useState<{
     displayName: string;
@@ -31,9 +33,8 @@ const ProfilePage = () => {
         const client: MatrixClient = await authService.getAuthenticatedClient();
         const userId = client.getUserId();
         if (!userId) {
-          throw new Error('Unable to retrieve user ID.');
+          throw new Error(t('errorNoUserId'));
         }
-
         const profile = await client.getProfileInfo(userId);
         setUserInfo({
           displayName: profile.displayname || userId,
@@ -42,15 +43,14 @@ const ProfilePage = () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         console.error('Error loading user information:', err);
-        setError(err.message || 'Unable to load user information. Please try again.');
+        setError(err.message || t('errorLoadUserInfo'));
         router.push('/auth/login');
       } finally {
         setLoading(false);
       }
     };
-
     loadUserInfo();
-  }, [router]);
+  }, [router, t]);
 
   const handleLogout = async () => {
     setLogoutLoading(true);
@@ -61,7 +61,7 @@ const ProfilePage = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Error during logout:', err);
-      setError(err.message || 'Logout failed. Please try again.');
+      setError(err.message || t('errorLogout'));
     } finally {
       setLogoutLoading(false);
     }
@@ -84,12 +84,10 @@ const ProfilePage = () => {
     }
   };
 
-  // Focus on Confirm button and handle Enter/Esc keys for modal
   useEffect(() => {
     if (showConfirmModal && confirmButtonRef.current) {
       confirmButtonRef.current.focus();
     }
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (showConfirmModal) {
         if (e.key === 'Enter') {
@@ -101,7 +99,6 @@ const ProfilePage = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showConfirmModal]);
 
   if (loading) {
@@ -128,7 +125,7 @@ const ProfilePage = () => {
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          Loading...
+          {t('loading')}
         </div>
       </div>
     );
@@ -138,16 +135,13 @@ const ProfilePage = () => {
     <div className="flex flex-col min-h-screen bg-gray-100">
       <div className="flex-1 flex items-center justify-center py-10 px-4">
         <div className="w-full max-w-md bg-white rounded-xl shadow-2xl p-8 space-y-8">
-          {/* Header */}
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 flex items-center justify-center gap-2">
               <UserCircleIcon className="h-8 w-8 text-gray-600" />
-              Your Profile
+              {t('title')}
             </h2>
-            <p className="mt-2 text-sm text-gray-600">Manage your personal information</p>
+            <p className="mt-2 text-sm text-gray-600">{t('manageInfo')}</p>
           </div>
-
-          {/* Error Message */}
           {error && (
             <div
               id="error-message"
@@ -171,8 +165,6 @@ const ProfilePage = () => {
               {error}
             </div>
           )}
-
-          {/* User Info */}
           {userInfo && (
             <div className="space-y-6 text-center">
               <div className="flex flex-col items-center">
@@ -187,13 +179,25 @@ const ProfilePage = () => {
               </div>
               <div className="text-sm text-gray-600 flex items-center justify-center gap-2">
                 <HeartIcon className="h-5 w-5 text-red-500" />
-                Thank you for using our service!
+                {t('thankYou')}
               </div>
             </div>
           )}
-
-          {/* Buttons */}
           <div className="space-y-3">
+            {/* Language Switcher */}
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">{t('languageLabel')}</span>
+              <div className="flex items-center gap-4">
+                <select
+                  value={locale}
+                  onChange={(e) => setLocale(e.target.value)}
+                  className="px-2 py-1 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="en">English</option>
+                  <option value="vi">Tiếng Việt</option>
+                </select>
+              </div>
+            </div>
             <button
               onClick={() => setShowConfirmModal(true)}
               disabled={logoutLoading}
@@ -202,7 +206,7 @@ const ProfilePage = () => {
                   ? 'bg-red-400 cursor-not-allowed'
                   : 'bg-red-600 hover:bg-red-700'
               }`}
-              aria-label="Log out of ChatSphere"
+              aria-label={t('logout')}
             >
               {logoutLoading ? (
                 <span className="flex items-center gap-2">
@@ -226,36 +230,30 @@ const ProfilePage = () => {
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     />
                   </svg>
-                  Logging out...
+                  {t('loggingOut')}
                 </span>
               ) : (
                 <>
                   <ArrowLeftOnRectangleIcon className="h-5 w-5" />
-                  Log out
+                  {t('logout')}
                 </>
               )}
             </button>
             <button
               onClick={handleBack}
               className="w-full py-3 rounded-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors duration-200 flex items-center justify-center gap-2"
-              aria-label="Go back to previous page"
+              aria-label={t('back')}
             >
               <ArrowLeftIcon className="h-5 w-5" />
-              Back
+              {t('back')}
             </button>
           </div>
-
-          {/* Slogan */}
           <p className="text-center text-sm text-gray-600 font-medium">
-            Connecting hearts, starting with you
+            {t('slogan')}
           </p>
         </div>
       </div>
-
-      {/* Footer */}
       <Footer />
-
-      {/* Confirm Logout Modal */}
       {showConfirmModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
@@ -265,26 +263,26 @@ const ProfilePage = () => {
         >
           <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 animate-fade-in">
             <h3 id="confirm-modal-title" className="text-xl font-bold text-gray-900 text-center">
-              Confirm Logout
+              {t('confirmLogout')}
             </h3>
             <p className="mt-2 text-base text-gray-600 text-center">
-              Are you sure you want to log out?
+              {t('confirmMessage')}
             </p>
             <div className="mt-6 flex gap-4">
               <button
                 onClick={handleCancelLogout}
                 className="flex-1 py-3 rounded-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors duration-200"
-                aria-label="Cancel logout"
+                aria-label={t('cancel')}
               >
-                Cancel
+                {t('cancel')}
               </button>
               <button
                 ref={confirmButtonRef}
                 onClick={handleConfirmLogout}
                 className="flex-1 py-3 rounded-lg font-medium text-white bg-red-600 hover:bg-red-700 transition-colors duration-200"
-                aria-label="Confirm logout"
+                aria-label={t('confirm')}
               >
-                Confirm
+                {t('confirm')}
               </button>
             </div>
           </div>

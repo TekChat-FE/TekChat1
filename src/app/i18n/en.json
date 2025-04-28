@@ -1,0 +1,128 @@
+{
+  "Home": {
+    "title": "Connect Instantly with ChatSphere",
+    "description": "Experience seamless communication with friends and teams using our modern chat platform.",
+    "login": "Login",
+    "features": "Features",
+    "support": "Support",
+    "chatsphere": "ChatSphere",
+    "chatDemo": {
+      "message1": "Hey, how's it going?",
+      "message2": "Great! How about you?"
+    }
+  },
+  "Profile": {
+    "title": "Your Profile",
+    "manageInfo": "Manage your personal information",
+    "logout": "Log out",
+    "confirmLogout": "Confirm Logout",
+    "confirmMessage": "Are you sure you want to log out?",
+    "errorNoUserId": "Unable to retrieve user ID.",
+    "errorLoadUserInfo": "Unable to load user information. Please try again.",
+    "errorLogout": "Logout failed. Please try again.",
+    "loading": "Loading...",
+    "loggingOut": "Logging out...",
+    "thankYou": "Thank you for using our service!",
+    "back": "Back",
+    "slogan": "Connecting hearts, starting with you",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "languageLabel": "Language:"
+  },
+  "Login": {
+    "title": "Log in to ChatSphere",
+    "description": "Connect with friends and community",
+    "usernamePassword": "Username/Password",
+    "accessToken": "Access Token",
+    "accessTokenLabel": "Access Token",
+    "accessTokenPlaceholder": "Enter Access Token",
+    "accessTokenHelp": "Get Access Token from Element: Settings → Help & About → Access Token.",
+    "learnMore": "Learn more",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "@user:matrix.org",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "••••••••",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "loggingIn": "Logging in...",
+    "loginButton": "Log in",
+    "back": "Back",
+    "signupPrompt": "Don't have an account?",
+    "signupLink": "Sign up now",
+    "validation": {
+      "invalidHomeserver": "Invalid Homeserver URL. Example: https://matrix.org",
+      "emptyAccessToken": "Access Token cannot be empty.",
+      "invalidAccessToken": "Invalid Access Token format.",
+      "invalidUsername": "Invalid username (@username:homeserver).",
+      "shortPassword": "Password must be at least 8 characters.",
+      "loginFailed": "Login failed. Please check your information!"
+    }
+  },
+  "RoomList": {
+    "edit": "Edit",
+    "title": "Chats",
+    "searchPlaceholder": "Search",
+    "loading": "Loading...",
+    "noRooms": "No rooms available.",
+    "createRoomSuccess": "Room {type} Created Successfully!",
+    "createRoomSuccessTypeGroup": "Group",
+    "createRoomSuccessTypeContact": "Contact",
+    "createRoomError": "Failed to create room. Please try again!"
+  },
+  "Footer": {
+    "contacts": "Contacts",
+    "chats": "Chats",
+    "settings": "Settings"
+  },
+  "Header": {
+    "edit": "Edit",
+    "title": "Chats"
+  },
+  "CreateRoomModal": {
+    "title": "Create New Room",
+    "roomNamePlaceholder": "Enter room name...",
+    "newContactButton": "New Contact",
+    "newGroupButton": "New Group",
+    "errorEmptyRoomName": "Please enter a room name.",
+    "cancelButton": "Cancel",
+    "createButton": "Create"
+  },
+  "ChatSidebar": {
+    "title": "Members",
+    "userIdPlaceholder": "Enter User ID",
+    "addMemberButton": "Add Member",
+    "deleteRoomButton": "Delete Room",
+    "closeButton": "Close"
+  },
+  "CallModal": {
+    "incomingVideoCall": "Incoming video call from {callerName}",
+    "incomingVoiceCall": "Incoming voice call from {callerName}",
+    "acceptButton": "Accept",
+    "rejectButton": "Reject"
+  },
+  "CallControls": {
+    "speaker": {
+      "turnOffAriaLabel": "Turn off speaker",
+      "turnOnAriaLabel": "Turn on speaker",
+      "label": "speaker"
+    },
+    "mic": {
+      "muteAriaLabel": "Mute microphone",
+      "unmuteAriaLabel": "Unmute microphone",
+      "label": "mute"
+    },
+    "camera": {
+      "turnOffAriaLabel": "Turn off camera",
+      "turnOnAriaLabel": "Turn on camera",
+      "label": "video"
+    },
+    "end": {
+      "ariaLabel": "End call",
+      "label": "end"
+    }
+  },
+  "CallUI": {
+    "waitingForConnection": "Waiting for connection...",
+    "errorPlaceholder": "An error occurred"
+  }
+}
