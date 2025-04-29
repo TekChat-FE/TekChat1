@@ -1,6 +1,7 @@
 'use client';
 import { RoomMember } from 'matrix-js-sdk';
 import { motion } from 'framer-motion';
+import UserAvatar from "@/app/components/common/UserAvatar";
 
 interface ChatSidebarProps {
     isOpen: boolean;
@@ -11,7 +12,7 @@ interface ChatSidebarProps {
     isRoomOwner: boolean;
     onInviteMember: () => void;
     onDeleteRoom: () => void;
-    isGroup: boolean; // Xác định loại phòng (nhóm hoặc liên hệ cá nhân)
+    isGroup: boolean;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -27,12 +28,11 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 }) => {
     if (!isOpen) return null;
 
-    // Kiểm tra điều kiện hiển thị nút "Thêm thành viên"
     const canAddMember = isGroup || (!isGroup && members.length < 2);
 
     return (
         <>
-            {/* Blur nền */}
+            {/* Nền mờ */}
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 0.4 }}
@@ -42,25 +42,45 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                 onClick={onClose}
             />
 
-            {/* Slide Sidebar */}
+            {/* Sidebar với thiết kế mượt mà */}
             <motion.aside
-                initial={{ x: '5%' }}
-                animate={{ x: '0%' }}
-                exit={{ x: '5%' }}
-                transition={{ type: 'tween', ease: 'easeInOut', duration: 0 }}
-                className="absolute top-0 right-0 h-full bg-white shadow-lg w-full max-w-md z-20 p-6 flex flex-col"
-                style={{ right: 'calc(85.3% - 50vw)' }} // Đặt Sidebar bắt đầu từ giữa
+                initial={{ y: '100%' }}
+                animate={{ y: '0%' }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', stiffness: 250, damping: 25 }}
+                className="absolute top-0 right-0 h-full bg-gradient-to-t from-gray-100 via-white to-gray-200 w-full max-w-md z-20 p-6 flex flex-col rounded-tl-3xl rounded-bl-3xl"
+                style={{ right: 'calc(85.5% - 50vw)' }}
             >
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Thành viên</h2>
-                <ul className="space-y-3 flex-1 overflow-y-auto">
-                    {members.map((member) => (
-                        <li key={member.userId} className="bg-gray-100 p-3 rounded-lg shadow-sm text-sm text-gray-700">
-                            {member.name || member.userId}
-                        </li>
-                    ))}
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-semibold text-gray-800">Thành viên</h2>
+                    <motion.button
+                        onClick={onClose}
+                        className="text-gray-600 hover:text-gray-800"
+                        whileHover={{ scale: 1.1 }}
+                    >
+                        <span className="material-icons">close</span>
+                    </motion.button>
+                </div>
+
+                {/* Danh sách thành viên */}
+                <ul className="space-y-4 flex-1 overflow-y-auto mb-6">
+                    {members.map((member) => {
+                        const displayName = member.name || member.userId;
+                        return (
+                            <motion.li
+                                key={member.userId}
+                                className="flex items-center gap-4 bg-white p-3 rounded-xl shadow-sm hover:bg-gray-100 transition-all duration-300 ease-out"
+                                whileHover={{ scale: 1.05 }}
+                            >
+                                <UserAvatar name={displayName} />
+                                <span className="text-md text-gray-700">{displayName}</span>
+                            </motion.li>
+                        );
+                    })}
                 </ul>
-                <div className="mt-6 space-y-3">
-                    {/* Hiển thị nút thêm thành viên nếu điều kiện cho phép */}
+
+                {/* Form thêm thành viên */}
+                <div className="space-y-4">
                     {canAddMember && (
                         <>
                             <input
@@ -68,32 +88,29 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                                 value={inviteUserId}
                                 onChange={(e) => setInviteUserId(e.target.value)}
                                 placeholder="Nhập User ID"
-                                className="w-full rounded-lg border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+                                className="w-full rounded-lg border border-gray-300 p-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 ease-in-out"
                             />
-                            <button
+                            <motion.button
                                 onClick={onInviteMember}
-                                className="w-full bg-blue-500 text-white rounded-lg p-3 hover:bg-blue-600 transition"
+                                className="w-full bg-blue-600 text-white rounded-lg p-4 hover:bg-blue-700 transition-all duration-200 ease-in-out"
+                                whileHover={{ scale: 1.05 }}
                             >
                                 Thêm thành viên
-                            </button>
+                            </motion.button>
                         </>
                     )}
+
                     {/* Hiển thị nút xóa phòng nếu là chủ phòng */}
                     {isRoomOwner && (
-                        <button
+                        <motion.button
                             onClick={onDeleteRoom}
-                            className="w-full bg-red-500 text-white rounded-lg p-3 hover:bg-red-600 transition"
+                            className="w-full bg-red-600 text-white rounded-lg p-4 hover:bg-red-700 transition-all duration-200 ease-in-out"
+                            whileHover={{ scale: 1.05 }}
                         >
                             Xóa phòng
-                        </button>
+                        </motion.button>
                     )}
                 </div>
-                <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-                >
-                    Đóng
-                </button>
             </motion.aside>
         </>
     );
