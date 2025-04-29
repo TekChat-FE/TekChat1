@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "date-fns": "^4.1.0",
     "framer-motion": "^12.9.1",
     "lucide-react": "^0.503.0",
     "matrix-js-sdk": "^37.2.0",
