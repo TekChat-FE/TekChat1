@@ -12,6 +12,7 @@ import CallModal from "@/app/components/call/CallModal";
 import VoiceCallUI from "@/app/components/call/VoiceCallUI";
 import VideoCallUI from "@/app/components/call/VideoCallUI";
 import SearchList from "@/app/components/chat/SearchList";
+import { RoomEvent } from "matrix-js-sdk/lib/models/room";
 
 interface ChatViewProps {
   matrixClient: MatrixClient;
@@ -37,6 +38,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<ChatMessage[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [deliveredEventId, setDeliveredEventId] = useState<string | null>(null);
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -72,8 +74,10 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
 
   useEffect(() => {
     const setupListeners = async () => {
+      // Lắng nghe tin nhắn mới
       const handleNewMessage = async (event: MatrixEvent, room?: Room) => {
         if (!room || room.roomId !== roomId) return;
+
         const newMessage = await chatService.processChatMessage(
           event,
           matrixClient
@@ -93,7 +97,35 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       const removeMessageListener = await chatService.onNewMessage(
         handleNewMessage
       );
-      return removeMessageListener;
+
+      // ✅ Lắng nghe mọi hoạt động trong phòng (timeline event)
+      const handleRoomTimelineEvent = (event: MatrixEvent, room?: Room) => {
+        if (!room || room.roomId !== roomId) return;
+
+        const sender = event.getSender();
+        const currentUserId = matrixClient.getUserId();
+        if (!currentUserId || sender === currentUserId) return;
+
+        const lastOwnMessage = messages
+          .filter((m) => m.sender === currentUserId)
+          .at(-1);
+
+        if (lastOwnMessage) {
+          setDeliveredEventId(lastOwnMessage.eventId);
+        }
+      };
+
+      // 👇 Đăng ký listener đúng kiểu
+      matrixClient.on(RoomEvent.Timeline, handleRoomTimelineEvent);
+
+      // ✅ Cleanup
+      return () => {
+        removeMessageListener?.();
+        matrixClient.removeListener(
+          RoomEvent.Timeline,
+          handleRoomTimelineEvent
+        );
+      };
     };
 
     let cleanup: (() => void) | undefined;
@@ -104,7 +136,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     return () => {
       if (cleanup) cleanup();
     };
-  }, [roomId, matrixClient]);
+  }, [roomId, matrixClient, messages]);
 
   const handleSendMessage = async () => {
     if (!messageText.trim()) return;
@@ -333,13 +365,16 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                 const element = document.getElementById(`msg-${eventId}`);
                 if (element) {
                   element.classList.add("bg-yellow-100");
-                  element.scrollIntoView({ behavior: "smooth", block: "center" });
+                  element.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
                   setIsSearchOpen(false);
                   setTimeout(() => {
                     element.classList.remove("bg-yellow-100");
                   }, 1000);
                 }
-              }}              
+              }}
             />
           </div>
         )}
@@ -367,7 +402,11 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                 </button>
               </div>
             )}
-            <MessageList messages={messages} currentUserId={currentUserId} />
+            <MessageList
+              messages={messages}
+              currentUserId={currentUserId}
+              deliveredEventId={deliveredEventId}
+            />
           </>
         )}
 
