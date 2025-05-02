@@ -1,16 +1,17 @@
-'use client';
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { MatrixClient, MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
-import chatService, { ChatMessage } from '@/app/services/matrix/chatService';
-import roomService from '@/app/services/matrix/roomService';
-import { withErrorHandling } from '@/app/services/utils/withErrorHandling';
-import useCall from '@/app/hooks/useCall';
-import MessageList from '@/app/components/chat/MessageList';
-import ChatSidebar from '@/app/components/chat/ChatSidebar';
-import CallModal from '@/app/components/call/CallModal';
-import VoiceCallUI from '@/app/components/call/VoiceCallUI';
-import VideoCallUI from '@/app/components/call/VideoCallUI';
+"use client";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { MatrixClient, MatrixEvent, Room, RoomMember } from "matrix-js-sdk";
+import chatService, { ChatMessage } from "@/app/services/matrix/chatService";
+import roomService from "@/app/services/matrix/roomService";
+import { withErrorHandling } from "@/app/services/utils/withErrorHandling";
+import useCall from "@/app/hooks/useCall";
+import MessageList from "@/app/components/chat/MessageList";
+import ChatSidebar from "@/app/components/chat/ChatSidebar";
+import CallModal from "@/app/components/call/CallModal";
+import VoiceCallUI from "@/app/components/call/VoiceCallUI";
+import VideoCallUI from "@/app/components/call/VideoCallUI";
+import SearchList from "@/app/components/chat/SearchList";
 
 interface ChatViewProps {
   matrixClient: MatrixClient;
@@ -24,14 +25,18 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const router = useRouter();
   const { state, startCall } = useCall();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [messageText, setMessageText] = useState('');
-  const [roomName, setRoomName] = useState<string>('');
+  const [messageText, setMessageText] = useState("");
+  const [roomName, setRoomName] = useState<string>("");
   const [members, setMembers] = useState<RoomMember[]>([]);
-  const [inviteUserId, setInviteUserId] = useState('');
+  const [inviteUserId, setInviteUserId] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Chỉnh lại giá trị mặc định là false
   const [isRoomOwner, setIsRoomOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<ChatMessage[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -42,7 +47,12 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
         chatService.getRoomMessages(roomId),
       ]);
 
-      console.log('Dữ liệu phòng:', { roomName, members, isOwner, messages: fetchedMessages });
+      console.log("Dữ liệu phòng:", {
+        roomName,
+        members,
+        isOwner,
+        messages: fetchedMessages,
+      });
 
       setRoomName(roomName);
       setMembers(members);
@@ -50,8 +60,8 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       setMessages(fetchedMessages);
       setError(null);
     } catch (err) {
-      console.error('Lỗi trong fetchRoomData:', err);
-      setError('Không thể tải dữ liệu phòng chat.');
+      console.error("Lỗi trong fetchRoomData:", err);
+      setError("Không thể tải dữ liệu phòng chat.");
     }
   }, [roomId]);
 
@@ -64,19 +74,25 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     const setupListeners = async () => {
       const handleNewMessage = async (event: MatrixEvent, room?: Room) => {
         if (!room || room.roomId !== roomId) return;
-        const newMessage = await chatService.processChatMessage(event, matrixClient);
+        const newMessage = await chatService.processChatMessage(
+          event,
+          matrixClient
+        );
         if (!newMessage) return;
 
         const currentUserId = matrixClient.getUserId();
         if (currentUserId && newMessage.sender === currentUserId) return;
 
         setMessages((prev) => {
-          if (prev.some((msg) => msg.eventId === newMessage.eventId)) return prev;
+          if (prev.some((msg) => msg.eventId === newMessage.eventId))
+            return prev;
           return [...prev, newMessage];
         });
       };
 
-      const removeMessageListener = await chatService.onNewMessage(handleNewMessage);
+      const removeMessageListener = await chatService.onNewMessage(
+        handleNewMessage
+      );
       return removeMessageListener;
     };
 
@@ -96,29 +112,33 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     const currentUserId = matrixClient.getUserId();
     const tempEventId = `temp-${Date.now()}`;
     const newMessage: ChatMessage = {
-      sender: currentUserId || 'Bạn',
+      sender: currentUserId || "Bạn",
       body: messageText,
       eventId: tempEventId,
       avatarUrl: undefined,
       timestamp: Date.now(),
     };
     setMessages((prev) => [...prev, newMessage]);
-    setMessageText('');
+    setMessageText("");
 
     await withErrorHandling(
       () => chatService.sendMessage(roomId, messageText),
-      'Không thể gửi tin nhắn.',
+      "Không thể gửi tin nhắn.",
       setError
     )
       .then((eventId) => {
         setMessages((prev) =>
-          prev.map((msg) => (msg.eventId === tempEventId ? { ...msg, eventId } : msg))
+          prev.map((msg) =>
+            msg.eventId === tempEventId ? { ...msg, eventId } : msg
+          )
         );
       })
       .catch(() => {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.eventId === tempEventId ? { ...msg, body: `Lỗi gửi: ${messageText}` } : msg
+            msg.eventId === tempEventId
+              ? { ...msg, body: `Lỗi gửi: ${messageText}` }
+              : msg
           )
         );
       });
@@ -128,21 +148,21 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     if (!inviteUserId.trim()) return;
     await withErrorHandling(
       () => chatService.inviteMember(roomId, inviteUserId),
-      'Không thể mời thành viên.',
+      "Không thể mời thành viên.",
       setError
     ).then(() => {
-      setInviteUserId('');
+      setInviteUserId("");
     });
   };
 
   const handleDeleteRoom = async () => {
-    if (!confirm('Bạn có chắc chắn muốn xóa phòng này?')) return;
+    if (!confirm("Bạn có chắc chắn muốn xóa phòng này?")) return;
     await withErrorHandling(
       () => roomService.deleteRoom(roomId),
-      'Không thể xóa phòng.',
+      "Không thể xóa phòng.",
       setError
     ).then(() => {
-      router.push('/roomlist');
+      router.push("/roomlist");
     });
   };
 
@@ -153,17 +173,17 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   };
 
   const handleStartVoiceCall = () => {
-    startCall(roomId, 'voice');
+    startCall(roomId, "voice");
   };
 
   const handleStartVideoCall = () => {
-    startCall(roomId, 'video');
+    startCall(roomId, "video");
   };
 
   const currentUserId = matrixClient.getUserId();
   if (!currentUserId) {
-    console.warn('No user logged in, redirecting to login');
-    router.push('/auth/login');
+    console.warn("No user logged in, redirecting to login");
+    router.push("/auth/login");
     return null;
   }
 
@@ -173,20 +193,68 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
         {/* Nội dung khung chat */}
         <header className="bg-white shadow-md p-4 flex items-center justify-between">
           <div className="flex items-center">
-            <button onClick={() => router.back()} className="text-gray-600 hover:text-gray-800 mr-3">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+            <button
+              onClick={() => router.back()}
+              className="text-gray-600 hover:text-gray-800 mr-3"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
             </button>
-            <h1 className="text-xl font-bold text-gray-900 truncate">{roomName}</h1>
+            <h1 className="text-xl font-bold text-gray-900 truncate">
+              {roomName}
+            </h1>
           </div>
           <div className="flex items-center space-x-3">
+            <button
+              onClick={() => {
+                const newState = !isSearchOpen;
+                setIsSearchOpen(newState);
+                if (newState) {
+                  setSearchTerm("");
+                  setSearchResults([]);
+                  setHasSearched(false);
+                }
+              }}
+              className="text-gray-600 hover:text-gray-800"
+              title="Tìm kiếm"
+            >
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"
+                />
+              </svg>
+            </button>
+
             <button
               onClick={handleStartVoiceCall}
               className="text-gray-600 hover:text-gray-800"
               title="Cuộc gọi thoại"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -200,8 +268,18 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               className="text-gray-600 hover:text-gray-800"
               title="Cuộc gọi video"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l5-5m0 10l-5-5" />
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15 10l5-5m0 10l-5-5"
+                />
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -214,19 +292,64 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="text-gray-600 hover:text-gray-800"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
               </svg>
             </button>
           </div>
         </header>
-  
+        {isSearchOpen && (
+          <div className="border-t p-2">
+            <input
+              type="text"
+              placeholder="Tìm tin nhắn..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const results = messages.filter((msg) =>
+                    msg.body.toLowerCase().includes(searchTerm.toLowerCase())
+                  );
+                  setSearchResults(results);
+                  setHasSearched(true);
+                }
+              }}
+              className="w-full border px-3 py-2 rounded-md"
+            />
+            <SearchList
+              results={searchResults}
+              hasSearched={hasSearched}
+              onSelect={(eventId) => {
+                const element = document.getElementById(`msg-${eventId}`);
+                if (element) {
+                  element.classList.add("bg-yellow-100");
+                  element.scrollIntoView({ behavior: "smooth", block: "center" });
+                  setIsSearchOpen(false);
+                  setTimeout(() => {
+                    element.classList.remove("bg-yellow-100");
+                  }, 1000);
+                }
+              }}              
+            />
+          </div>
+        )}
+
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         ) : state.activeCall ? (
-          state.callType === 'voice' ? (
+          state.callType === "voice" ? (
             <VoiceCallUI />
           ) : (
             <VideoCallUI />
@@ -247,7 +370,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
             <MessageList messages={messages} currentUserId={currentUserId} />
           </>
         )}
-  
+
         {/* Footer - Only render when there is no active call */}
         {!state.activeCall && (
           <footer className="bg-white p-4 shadow-inner">
@@ -256,7 +379,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                 type="text"
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                 placeholder="Nhập tin nhắn..."
                 className="flex-1 rounded-full border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
               />
@@ -264,7 +387,12 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                 onClick={handleSendMessage}
                 className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -277,7 +405,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           </footer>
         )}
       </div>
-  
+
       {isSidebarOpen && (
         <ChatSidebar
           onClose={() => setIsSidebarOpen(false)}
@@ -291,8 +419,11 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           isGroup={false} // Đặt thành false nếu là contact
         />
       )}
-  
-      <CallModal incomingCall={state.incomingCall} callerName={state.callerName} />
+
+      <CallModal
+        incomingCall={state.incomingCall}
+        callerName={state.callerName}
+      />
     </div>
   );
 };
