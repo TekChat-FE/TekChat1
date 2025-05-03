@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useRef } from "react";
 import { format } from "date-fns";
+import { useTranslations } from 'next-intl';
 
 interface MessageListProps {
   messages: Array<{
@@ -32,6 +33,7 @@ const MessageList: React.FC<MessageListProps> = ({
   deliveredEventId,
   getDisplayName,
 }) => {
+  const t = useTranslations('MessageList');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -129,10 +131,10 @@ const MessageList: React.FC<MessageListProps> = ({
                         <span className="text-gray-300 text-[13px]">✓</span>
                         <span className="italic">
                           {message.eventId.startsWith("temp-")
-                            ? "sending..."
+                            ? t('sending')
                             : message.eventId === deliveredEventId
-                            ? "delivered"
-                            : "sent"}
+                            ?  t('delivered')
+                            :  t('sent')}
                         </span>
                       </div>
                   )}

@@ -124,5 +124,10 @@
   "CallUI": {
     "waitingForConnection": "Waiting for connection...",
     "errorPlaceholder": "An error occurred"
+  },
+  "MessageList": {
+    "sending": "Sending...",
+    "sent": "Sent",
+    "delivered": "Delivered"
   }
 }

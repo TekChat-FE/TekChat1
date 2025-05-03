@@ -124,5 +124,10 @@
   "CallUI": {
     "waitingForConnection": "Đang chờ kết nối...",
     "errorPlaceholder": "Có lỗi xảy ra"
+  },
+  "MessageList": {
+    "sending": "Đang gửi...",
+    "sent": "Đã gửi",
+    "delivered": "Đã giao"
   }
 }
