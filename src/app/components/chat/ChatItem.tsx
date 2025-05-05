@@ -27,7 +27,7 @@ const ChatItem: React.FC<ChatItemProps> = ({
 }) => {
   return (
     <div
-      className="flex items-center gap-4 py-3 px-4 border-b border-gray-100 cursor-pointer hover:bg-gray-800"
+      className="flex items-center gap-4 py-3 px-4 border-b border-gray-100 cursor-pointer hover:bg-gray-300"
       onClick={onClick}
     >
       <div className="relative flex-shrink-0">

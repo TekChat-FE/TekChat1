@@ -34,11 +34,12 @@ const MessageList: React.FC<MessageListProps> = ({
   getDisplayName,
 }) => {
   const t = useTranslations('MessageList');
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  // Đặt vị trí cuộn ngay tại tin nhắn mới nhất khi component render
   useEffect(() => {
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [messages]);
 
@@ -62,15 +63,19 @@ const MessageList: React.FC<MessageListProps> = ({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div
+      ref={containerRef} // Thêm tham chiếu đến container
+      className="flex-1 overflow-y-auto p-4 space-y-4 bg-cover bg-center"
+      style={{ backgroundImage: "url('https://i.pinimg.com/736x/e7/d3/0a/e7d30a649104448116bdb716e83cbb9d.jpg ')" }}
+    >
       {messages.map((message) => {
         const isCurrentUser = message.sender === currentUserId;
         const formattedTime =
           typeof message.timestamp === "number" && !isNaN(message.timestamp)
             ? new Date(message.timestamp).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
+              hour: "2-digit",
+              minute: "2-digit",
+            })
             : "N/A";
 
         const rawName = getDisplayName
@@ -95,24 +100,21 @@ const MessageList: React.FC<MessageListProps> = ({
             )}
 
             <div
-              className={`flex ${
-                isCurrentUser ? "justify-end" : "justify-start"
-              }`}
+              className={`flex ${isCurrentUser ? "justify-end" : "justify-start"
+                }`}
             >
               <div
-                className={`flex items-end gap-2 ${
-                  isCurrentUser ? "flex-row-reverse" : ""
-                }`}
+                className={`flex items-end gap-2 ${isCurrentUser ? "flex-row-reverse" : ""
+                  }`}
               >
                 {/* ✅ Bubble + trạng thái tách biệt */}
                 <div className="relative max-w-xs">
                   {/* Bubble chính */}
                   <div
-                    className={`p-3 rounded-lg break-words ${
-                      isCurrentUser
-                        ? "bg-green-200 text-black"
-                        : "bg-gray-200 text-gray-800"
-                    }`}
+                    className={`p-3 rounded-lg break-words ${isCurrentUser
+                      ? "bg-green-200 text-black"
+                      : "bg-gray-200 text-gray-800"
+                      }`}
                   >
                     <p className="text-xs font-semibold text-gray-600 mb-1">
                       {displayName}
@@ -127,25 +129,23 @@ const MessageList: React.FC<MessageListProps> = ({
                   {isCurrentUser &&
                     message.eventId === lastOwnMessage?.eventId &&
                     !repliedByB && (
-                      <div className="absolute -bottom-4 right-1 text-xs flex items-center gap-1 text-gray-400">
+                      <div className="absolute -bottom-4 right-1 text-xs flex items-center gap-1 text-gray-800">
                         <span className="text-gray-300 text-[13px]">✓</span>
-                        <span className="italic">
+                        <span className="italic font-bold">
                           {message.eventId.startsWith("temp-")
                             ? t('sending')
                             : message.eventId === deliveredEventId
-                            ?  t('delivered')
-                            :  t('sent')}
+                              ? t('delivered')
+                              : t('sent')}
                         </span>
                       </div>
-                  )}
+                    )}
                 </div>
               </div>
             </div>
           </div>
         );
       })}
-
-      <div ref={bottomRef}></div>
     </div>
   );
 };

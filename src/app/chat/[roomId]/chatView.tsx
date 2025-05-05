@@ -278,7 +278,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
 
             <button
               onClick={handleStartVoiceCall}
-              className="text-gray-600 hover:text-gray-800"
+              className="text-gray-600 hover:text-green-800"
               title="Cuộc gọi thoại"
             >
               <svg
@@ -297,7 +297,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
             </button>
             <button
               onClick={handleStartVideoCall}
-              className="text-gray-600 hover:text-gray-800"
+              className="text-gray-600 hover:text-green-800"
               title="Cuộc gọi video"
             >
               <svg
@@ -310,15 +310,10 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth="2"
-                  d="M15 10l5-5m0 10l-5-5"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M4 6h8a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"
                 />
               </svg>
+
             </button>
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
