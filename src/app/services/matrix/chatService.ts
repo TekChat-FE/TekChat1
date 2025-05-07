@@ -96,16 +96,6 @@ export class ChatService {
     return room ? room.name || "Không rõ tên phòng" : "Không rõ tên phòng";
   }
 
-  async isRoomOwner(roomId: string): Promise<boolean> {
-    const client = await this.getClient();
-    const room = client.getRoom(roomId);
-    if (!room) return false;
-    const userId = client.getUserId();
-    const creator = room.currentState
-      .getStateEvents(EventType.RoomCreate, "")
-      ?.getSender();
-    return userId === creator;
-  }
 
   private async getTimelineEvents(room: Room): Promise<MatrixEvent[]> {
     return room.getLiveTimeline().getEvents();

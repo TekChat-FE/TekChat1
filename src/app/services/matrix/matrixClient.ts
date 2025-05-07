@@ -1,17 +1,12 @@
 import { createClient, MatrixClient, SyncState, ClientEvent } from "matrix-js-sdk";
 import { MATRIX_CONFIG } from "@/app/services/utils/config";
+import { PresenceService } from "./presenceService";
 
 export class MatrixClientManager {
   private static client: MatrixClient | null = null;
   private static isInitializing: boolean = false;
   private static syncPromise: Promise<void> | null = null;
 
-  /**
-   * Initializes the Matrix client and waits for sync to complete.
-   * @param accessToken The access token for authentication.
-   * @param userId The user ID.
-   * @returns The initialized Matrix client.
-   */
   static async initialize(accessToken: string, userId: string): Promise<MatrixClient> {
     if (this.client && this.client.getSyncState() !== null) {
       console.log(`Trả về client đã khởi tạo: ${userId}, trạng thái: ${this.client.getSyncState()}`);
@@ -43,6 +38,15 @@ export class MatrixClientManager {
           deviceId,
         });
 
+        // Initialize PresenceService with the client
+        const presenceService = PresenceService.getInstance();
+        presenceService.initialize(this.client).then(() => {
+          // Đảm bảo trạng thái online được gửi sau khi khởi tạo
+          presenceService.updatePresence('online', 'online').catch((err) =>
+            console.error('[ERROR] Failed to set online status after initialization:', err)
+          );
+        });
+
         this.client.on(ClientEvent.Sync, (state: SyncState, prevState: SyncState | null) => {
           console.log(`Trạng thái sync cho ${userId} (deviceId: ${deviceId}): ${state} (trước đó: ${prevState})`);
           if (state === "PREPARED" || state === "SYNCING") {
@@ -54,6 +58,7 @@ export class MatrixClientManager {
           }
         });
 
+        // Yêu cầu đồng bộ Presence
         this.client.startClient({ initialSyncLimit: 10 }).catch(error => {
           console.error(`Lỗi khi khởi động client cho ${userId}:`, error);
           reject(error);
@@ -78,19 +83,13 @@ export class MatrixClientManager {
     }
   }
 
-  /**
-   * Gets the current Matrix client.
-   * @returns The Matrix client or null if not initialized.
-   */
   static getClient(): MatrixClient | null {
     return this.client;
   }
 
-  /**
-   * Resets the Matrix client.
-   */
-  static reset(): void {
+  static async reset(): Promise<void> {
     if (this.client) {
+      await PresenceService.getInstance().updatePresence('offline', '');
       this.client.stopClient();
       this.client = null;
     }
@@ -98,11 +97,6 @@ export class MatrixClientManager {
     this.syncPromise = null;
   }
 
-  /**
-   * Generates a unique device ID for the user.
-   * @param userId The user ID.
-   * @returns A unique device ID.
-   */
   private static generateDeviceId(userId: string): string {
     return `${userId.split(':')[0]}-${Math.random().toString(36).substring(2, 15)}`;
   }
