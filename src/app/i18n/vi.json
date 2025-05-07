@@ -91,8 +91,10 @@
     "title": "Thành viên",
     "userIdPlaceholder": "Nhập User ID",
     "addMemberButton": "Thêm thành viên",
-    "deleteRoomButton": "Xóa phòng",
-    "closeButton": "Đóng"
+    "deleteRoomButton": "Rời khỏi phòng",
+    "closeButton": "Đóng",
+    "online": "Đang hoạt động",
+    "offline": "Không hoạt động"
   },
   "CallModal": {
     "incomingVideoCall": "Cuộc gọi video đến từ {callerName}",

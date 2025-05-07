@@ -31,7 +31,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [inviteUserId, setInviteUserId] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Chỉnh lại giá trị mặc định là false
-  const [isRoomOwner, setIsRoomOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -42,23 +41,20 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
 
   const fetchRoomData = useCallback(async () => {
     try {
-      const [roomName, members, isOwner, fetchedMessages] = await Promise.all([
+      const [roomName, members, fetchedMessages] = await Promise.all([
         chatService.getRoomName(roomId),
         chatService.getRoomMembers(roomId),
-        chatService.isRoomOwner(roomId),
         chatService.getRoomMessages(roomId),
       ]);
 
       console.log("Dữ liệu phòng:", {
         roomName,
         members,
-        isOwner,
         messages: fetchedMessages,
       });
 
       setRoomName(roomName);
       setMembers(members);
-      setIsRoomOwner(isOwner);
       setMessages(fetchedMessages);
       setError(null);
     } catch (err) {
@@ -313,7 +309,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                   d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M4 6h8a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"
                 />
               </svg>
-
             </button>
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -447,7 +442,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           members={members}
           inviteUserId={inviteUserId}
           setInviteUserId={setInviteUserId}
-          isRoomOwner={isRoomOwner}
           onInviteMember={handleInviteMember}
           onDeleteRoom={handleDeleteRoom}
           isGroup={false} // Đặt thành false nếu là contact
