@@ -1,4 +1,5 @@
 'use client';
+
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -56,12 +57,12 @@ const ProfilePage = () => {
     setLogoutLoading(true);
     setError(null);
     try {
-      await authService.logout();
-      router.push('/auth/login');
+      // Redirect to home page instead of logging out
+      router.push('/');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
-      console.error('Error during logout:', err);
-      setError(err.message || t('errorLogout'));
+      console.error('Error navigating to home:', err);
+      setError(err.message || t('errorNavigateHome'));
     } finally {
       setLogoutLoading(false);
     }
@@ -135,6 +136,7 @@ const ProfilePage = () => {
     <div className="flex flex-col min-h-screen bg-gray-100">
       <div className="flex-1 flex items-center justify-center py-10 px-4">
         <div className="w-full max-w-md bg-white rounded-xl shadow-2xl p-8 space-y-8">
+          {/* Header */}
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 flex items-center justify-center gap-2">
               <UserCircleIcon className="h-8 w-8 text-gray-600" />
@@ -142,6 +144,8 @@ const ProfilePage = () => {
             </h2>
             <p className="mt-2 text-sm text-gray-600">{t('manageInfo')}</p>
           </div>
+
+          {/* Error Message */}
           {error && (
             <div
               id="error-message"
@@ -165,6 +169,8 @@ const ProfilePage = () => {
               {error}
             </div>
           )}
+
+          {/* User Info */}
           {userInfo && (
             <div className="space-y-6 text-center">
               <div className="flex flex-col items-center">
@@ -183,8 +189,9 @@ const ProfilePage = () => {
               </div>
             </div>
           )}
+
+          {/* Buttons and Language Switcher */}
           <div className="space-y-3">
-            {/* Language Switcher */}
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">{t('languageLabel')}</span>
               <div className="flex items-center gap-4">
@@ -248,12 +255,18 @@ const ProfilePage = () => {
               {t('back')}
             </button>
           </div>
+
+          {/* Slogan */}
           <p className="text-center text-sm text-gray-600 font-medium">
             {t('slogan')}
           </p>
         </div>
       </div>
+
+      {/* Footer */}
       <Footer />
+
+      {/* Confirm Logout Modal */}
       {showConfirmModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"

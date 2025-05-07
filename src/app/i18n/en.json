@@ -1,5 +1,7 @@
 {
   "Home": {
+    "pageTitle": "ChatSphere - Instant Messaging & Collaboration",
+    "metaDescription": "Join ChatSphere for seamless, secure, and instant communication with friends, teams, and communities.",
     "title": "Connect Instantly with ChatSphere",
     "description": "Experience seamless communication with friends and teams using our modern chat platform.",
     "login": "Login",
@@ -8,8 +10,12 @@
     "chatsphere": "ChatSphere",
     "chatDemo": {
       "message1": "Hey, how's it going?",
-      "message2": "Great! How about you?"
-    }
+      "message1Aria": "User A says: Hey, how's it going?",
+      "message2": "Great! How about you?",
+      "message2Aria": "User B says: Great! How about you?"
+    },
+    "userAAvatar": "Avatar of User A",
+    "userBAvatar": "Avatar of User B"
   },
   "Profile": {
     "title": "Your Profile",
@@ -49,6 +55,16 @@
     "back": "Back",
     "signupPrompt": "Don't have an account?",
     "signupLink": "Sign up now",
+    "confirmModalTitle": "Confirm Your Account",
+    "confirmModalDescription": "You are currently signed in with the account above. Continue to proceed or switch to a different account.",
+    "switchAccountPrompt": "Want to switch to a different account?",
+    "continueButton": "Continue",
+    "switchAccountButton": "Switch Account",
+    "closeModal": "Close modal",
+    "loginSuccess": "Logged in successfully!",
+    "continueSession": "Continuing with current session.",
+    "logoutSuccess": "Logged out successfully!",
+    "logoutFailed": "Failed to log out. Please try again.",
     "validation": {
       "invalidHomeserver": "Invalid Homeserver URL. Example: https://matrix.org",
       "emptyAccessToken": "Access Token cannot be empty.",
@@ -64,10 +80,21 @@
     "searchPlaceholder": "Search",
     "loading": "Loading...",
     "noRooms": "No rooms available.",
+    "noMessages": "No messages",
     "createRoomSuccess": "Room {type} Created Successfully!",
     "createRoomSuccessTypeGroup": "Group",
     "createRoomSuccessTypeContact": "Contact",
-    "createRoomError": "Failed to create room. Please try again!"
+    "createRoomError": "Failed to create room. Please try again!",
+    "accessTokenTitle": "Access Token",
+    "accessTokenLabel": "Access Token",
+    "hint": "Hint",
+    "accessTokenHint": "To obtain your access token, log in to your account and navigate to the Key icon. In the Key icon in Room you can generate or view your access token. Copy it here or use the Copy button below.",
+    "noAccessToken": "No access token found.",
+    "tokenCopied": "Access token copied to clipboard!",
+    "tokenCopyFailed": "Failed to copy access token.",
+    "copy": "Copy",
+    "close": "Close",
+    "closeModal": "Close modal"
   },
   "Footer": {
     "contacts": "Contacts",

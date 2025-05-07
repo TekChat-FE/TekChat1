@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useLocale } from '@/app/contexts/LocaleContext';
 import authService from '@/app/services/auth/authService';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import {
   UserIcon,
   LockClosedIcon,
@@ -13,6 +15,8 @@ import {
   EyeIcon,
   EyeSlashIcon,
   ArrowLeftIcon,
+  CheckCircleIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 export default function LoginPage() {
@@ -26,14 +30,20 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const router = useRouter();
 
-  // Load saved homeserver from localStorage
+  // Load saved homeserver and check session
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedHomeserver = localStorage.getItem('matrix_homeserver');
       if (savedHomeserver) {
         setHomeserver(savedHomeserver);
+      }
+      const savedUserId = localStorage.getItem('userId');
+      if (savedUserId) {
+        setCurrentUserId(savedUserId);
       }
     }
   }, []);
@@ -44,6 +54,27 @@ export default function LoginPage() {
       localStorage.setItem('matrix_homeserver', homeserver);
     }
   }, [homeserver]);
+
+  // Check login status on mount
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const isAuthenticated = await authService.isTokenValid();
+        if (isAuthenticated) {
+          const userId = localStorage.getItem('userId');
+          if (userId) {
+            setCurrentUserId(userId);
+            setShowConfirmModal(true); // Show confirm modal for existing session
+          } else {
+            router.push('/roomlist');
+          }
+        }
+      } catch (err) {
+        console.log('Not logged in or token expired, displaying login form.', err);
+      }
+    };
+    checkLoginStatus();
+  }, [router]);
 
   // Input validation
   const validateInputCredentials = (
@@ -68,19 +99,6 @@ export default function LoginPage() {
     return null;
   };
 
-  // Check login status on mount
-  useEffect(() => {
-    const checkLoginStatus = async () => {
-      try {
-        await authService.getAuthenticatedClient();
-        router.push('/roomlist');
-      } catch (err) {
-        console.log('Not logged in or token expired, displaying login form.', err);
-      }
-    };
-    checkLoginStatus();
-  }, [router]);
-
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,6 +115,10 @@ export default function LoginPage() {
     if (validationError) {
       setError(validationError);
       setLoading(false);
+      toast.error(validationError, {
+        position: 'top-center',
+        autoClose: 5000,
+      });
       return;
     }
 
@@ -106,18 +128,68 @@ export default function LoginPage() {
       } else {
         await authService.login(homeserver, username, password);
       }
-      // Save success message flag to localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('loginSuccess', 'true');
+      localStorage.setItem('loginSuccess', 'true');
+      const userId = localStorage.getItem('userId');
+      if (userId) {
+        setCurrentUserId(userId);
+        setShowConfirmModal(true);
+      } else {
+        toast.success(t('loginSuccess'), {
+          position: 'top-center',
+          autoClose: 3000,
+        });
+        router.push('/roomlist');
       }
-      router.push('/roomlist');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || err.message || t('validation.loginFailed');
       setError(errorMessage);
+      toast.error(errorMessage, {
+        position: 'top-center',
+        autoClose: 5000,
+      });
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle confirm modal continue
+  const handleConfirmContinue = () => {
+    setShowConfirmModal(false);
+    toast.success(t('continueSession'), {
+      position: 'top-center',
+      autoClose: 3000,
+    });
+    router.push('/roomlist');
+  };
+
+  // Handle confirm modal logout
+  const handleConfirmLogout = async () => {
+    setLoading(true);
+    try {
+      await authService.logout();
+      setShowConfirmModal(false);
+      setCurrentUserId(null);
+      toast.success(t('logoutSuccess'), {
+        position: 'top-center',
+        autoClose: 3000,
+      });
+      router.push('/auth/login');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      console.error('Error during logout:', err);
+      toast.error(t('logoutFailed'), {
+        position: 'top-center',
+        autoClose: 5000,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle confirm modal close
+  const handleConfirmModalClose = () => {
+    setShowConfirmModal(false);
   };
 
   // Handle back navigation
@@ -127,6 +199,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
+      <ToastContainer />
       <div className="w-full max-w-4xl grid grid-cols-1 gap-8 bg-white rounded-xl shadow-2xl overflow-hidden">
         {/* Header */}
         <header className="p-6">
@@ -206,7 +279,7 @@ export default function LoginPage() {
                 <p className="mt-2 text-xs text-gray-500">
                   {t('accessTokenHelp')}{' '}
                   <a
-                    href="https://matrix.org/docs/guides/using-access-tokens/"
+                    href="https://app.element.io"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-gray-600 hover:underline"
@@ -302,7 +375,7 @@ export default function LoginPage() {
                       className="animate-spin h-5 w-5 text-white"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
-                      viewBox="0 0 24 24"
+                      viewBox="0 24"
                     >
                       <circle
                         className="opacity-25"
@@ -348,6 +421,77 @@ export default function LoginPage() {
           </p>
         </div>
       </div>
+
+      {/* Confirm Account Modal */}
+      {showConfirmModal && currentUserId && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50"
+          role="dialog"
+          aria-labelledby="confirm-modal-title"
+        >
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+            {/* Header */}
+            <div className="flex justify-center items-center mb-6 relative">
+              <h3 id="confirm-modal-title" className="text-2xl font-bold text-gray-900 tracking-tight">
+                {t('confirmModalTitle')}
+              </h3>
+              <button
+                onClick={handleConfirmModalClose}
+                className="absolute right-0 text-gray-500 hover:text-gray-700 transition-colors"
+                aria-label={t('closeModal')}
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+
+            {/* User Info */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gray-200 text-gray-700 text-lg font-semibold">
+                {currentUserId?.charAt(1).toUpperCase() || 'U'}
+              </div>
+              <div>
+                <p className="text-gray-900 font-semibold text-lg">{currentUserId}</p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <p className="text-base text-gray-700 mb-6 font-medium">
+              {t('confirmModalDescription')}
+            </p>
+
+            {/* Switch Account Prompt */}
+            <p className="text-base text-gray-700 mb-4 font-medium">
+              {t('switchAccountPrompt')}
+            </p>
+
+            {/* Buttons */}
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={handleConfirmContinue}
+                disabled={loading}
+                className={`w-full py-3 rounded-lg font-medium text-white transition-colors duration-200 flex items-center justify-center gap-2 ${
+                  loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-800 hover:bg-gray-900'
+                }`}
+                aria-label={t('continueButton')}
+              >
+                <CheckCircleIcon className="h-5 w-5" />
+                {t('continueButton')}
+              </button>
+              <button
+                onClick={handleConfirmLogout}
+                disabled={loading}
+                className={`w-full py-3 rounded-lg font-medium text-white transition-colors duration-200 flex items-center justify-center gap-2 ${
+                  loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700'
+                }`}
+                aria-label={t('switchAccountButton')}
+              >
+                <ArrowRightOnRectangleIcon className="h-5 w-5" />
+                {t('switchAccountButton')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
