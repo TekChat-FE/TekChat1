@@ -1,7 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { MatrixClient } from "matrix-js-sdk";
-import { MATRIX_CONFIG } from "@/app/services/utils/config";
 import { MatrixClientManager } from "@/app/services/matrix/matrixClient";
 
 class AuthService {
@@ -23,6 +20,10 @@ class AuthService {
    * @param password The password.
    */
   async login(baseUrl: string, username: string, password: string): Promise<void> {
+    if (typeof window === "undefined") {
+      throw new Error("Login is not supported on server-side.");
+    }
+
     try {
       const response = await fetch(`${baseUrl}/_matrix/client/r0/login`, {
         method: "POST",
@@ -37,7 +38,7 @@ class AuthService {
       if (!response.ok) {
         const errorData: { errcode: string } = await response.json();
         const errorMessages: { [key: string]: string } = {
-          M_FORBIDDEN: "Invalid username or password.",
+          M_FORBIDDEN: "Invalid username or password. Please check your credentials.",
           M_LIMIT_EXCEEDED: "Too many requests. Please try again later.",
           M_USER_DEACTIVATED: "Your account has been deactivated.",
         };
@@ -46,11 +47,9 @@ class AuthService {
 
       const { access_token, user_id } = await response.json();
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem("accessToken", access_token);
-        localStorage.setItem("userId", user_id);
-        localStorage.setItem("matrix_homeserver", baseUrl);
-      }
+      localStorage.setItem("accessToken", access_token);
+      localStorage.setItem("userId", user_id);
+      localStorage.setItem("matrix_homeserver", baseUrl);
 
       await MatrixClientManager.initialize(access_token, user_id);
       console.log("✅ Login successful:", user_id);
@@ -66,11 +65,11 @@ class AuthService {
    * @param accessToken The Matrix access token.
    */
   async loginWithAccessToken(baseUrl: string, accessToken: string): Promise<void> {
-    try {
-      if (typeof window === "undefined") {
-        throw new Error("Login is only supported on client-side.");
-      }
+    if (typeof window === "undefined") {
+      throw new Error("Login is not supported on server-side.");
+    }
 
+    try {
       // Validate token by calling /whoami
       const response = await fetch(`${baseUrl}/_matrix/client/r0/account/whoami`, {
         headers: {
@@ -81,15 +80,15 @@ class AuthService {
       if (!response.ok) {
         const errorData = await response.json();
         const errorMessages: { [key: string]: string } = {
-          M_UNKNOWN_TOKEN: "Invalid or expired Access Token.",
+          M_UNKNOWN_TOKEN: "Invalid or expired access token. Please copy a new mx_access_token from Element's localStorage at https://app.element.io.",
           M_LIMIT_EXCEEDED: "Too many requests. Please try again later.",
         };
-        throw new Error(errorMessages[String(errorData.errcode)] || "Invalid Access Token.");
+        throw new Error(errorMessages[String(errorData.errcode)] || "Invalid access token. Please try again.");
       }
 
       const { user_id } = await response.json();
       if (!user_id) {
-        throw new Error("User ID not found from Access Token.");
+        throw new Error("User ID not found from access token.");
       }
 
       localStorage.setItem("accessToken", accessToken);
@@ -97,10 +96,10 @@ class AuthService {
       localStorage.setItem("matrix_homeserver", baseUrl);
 
       await MatrixClientManager.initialize(accessToken, user_id);
-      console.log("✅ Login with Access Token successful:", user_id);
+      console.log("✅ Login with access token successful:", user_id);
     } catch (error: any) {
-      console.error("❌ Error during login with Access Token:", error);
-      throw new Error(error.message || "Login with Access Token failed.");
+      console.error("❌ Error during login with access token:", error);
+      throw new Error(error.message || "Login with access token failed.");
     }
   }
 
@@ -116,21 +115,20 @@ class AuthService {
 
     const accessToken = localStorage.getItem("accessToken");
     const userId = localStorage.getItem("userId");
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const baseUrl = localStorage.getItem("matrix_homeserver") || MATRIX_CONFIG.BASE_URL;
+    const baseUrl = localStorage.getItem("matrix_homeserver");
 
-    if (!accessToken || !userId) {
-      throw new Error("You are not logged in to Matrix. Please log in first.");
+    if (!accessToken || !userId || !baseUrl) {
+      throw new Error("You are not logged in to Matrix. Please log in or paste your Element access token (mx_access_token) from https://app.element.io.");
     }
 
     try {
       const client = await MatrixClientManager.initialize(accessToken, userId);
       console.log("MatrixClient initialized:", client.getUserId(), client.getSyncState());
       return client;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error initializing client:", error);
-      this.logout();
-      throw new Error("Session has expired. Please log in again.");
+      await this.logout();
+      throw new Error("Session has expired. Please log in again or paste your Element access token (mx_access_token) from https://app.element.io.");
     }
   }
 
@@ -138,13 +136,14 @@ class AuthService {
    * Logs out the user and clears the session.
    */
   async logout(): Promise<void> {
-    try {
-      if (typeof window === "undefined") return;
+    if (typeof window === "undefined") return;
 
+    try {
       const accessToken = localStorage.getItem("accessToken");
-      if (accessToken) {
+      const baseUrl = localStorage.getItem("matrix_homeserver");
+      if (accessToken && baseUrl) {
         // Call Matrix /logout endpoint
-        await fetch(`${MATRIX_CONFIG.BASE_URL}/_matrix/client/r0/logout`, {
+        await fetch(`${baseUrl}/_matrix/client/r0/logout`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -160,14 +159,12 @@ class AuthService {
 
       MatrixClientManager.reset();
       console.log("✅ Logout successful.");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error during logout:", error);
     } finally {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("userId");
-        localStorage.removeItem("matrix_homeserver");
-      }
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("matrix_homeserver");
     }
   }
 
@@ -176,15 +173,23 @@ class AuthService {
    * @returns True if the token is valid, false otherwise.
    */
   async isTokenValid(): Promise<boolean> {
+    if (typeof window === "undefined") {
+      return false; // Cannot validate token on server-side
+    }
+
     try {
       const client = await this.getAuthenticatedClient();
       await client.whoami();
       return true;
-    } catch {
+    } catch (error: any) {
+      console.error("Token validation failed:", error);
+      // Clear localStorage on invalid token
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("userId");
+      localStorage.removeItem("matrix_homeserver");
       return false;
     }
   }
 }
 
-const authService = AuthService.getInstance();
-export default authService;
+export default AuthService.getInstance();
