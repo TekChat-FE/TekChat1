@@ -157,6 +157,7 @@
   "MessageList": {
     "sending": "Sending...",
     "sent": "Sent",
-    "delivered": "Delivered"
+    "delivered": "Delivered",
+    "read": "Read"
   }
 }

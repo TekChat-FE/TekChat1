@@ -21,6 +21,8 @@ export interface ChatMessage {
   eventId: string;
   avatarUrl?: string | null | undefined;
   timestamp: number;
+  tempId?: string;
+  status?: "sending" | "sent" | "delivered" | "read";
 }
 
 export class ChatService {
@@ -95,7 +97,6 @@ export class ChatService {
     const room = client.getRoom(roomId);
     return room ? room.name || "Không rõ tên phòng" : "Không rõ tên phòng";
   }
-
 
   private async getTimelineEvents(room: Room): Promise<MatrixEvent[]> {
     return room.getLiveTimeline().getEvents();
@@ -194,24 +195,33 @@ export class ChatService {
     return await this.fetchRoomMessages(roomId);
   }
 
-  async sendMessage(roomId: string, messageText: string): Promise<string> {
+  async sendMessage(
+    roomId: string,
+    messageText: string,
+    txnId?: string
+  ): Promise<string> {
     if (!messageText.trim()) {
       throw new Error("Tin nhắn không được để trống.");
     }
     try {
       const client = await this.getClient();
-      const response = await client.sendEvent(roomId, EventType.RoomMessage, {
-        msgtype: MsgType.Text,
-        body: messageText,
-      });
+      const response = await client.sendMessage(
+        roomId,
+        {
+          msgtype: MsgType.Text,
+          body: messageText,
+        },
+        txnId // ✅ thêm dòng này
+      );
       return response.event_id;
     } catch (error) {
       throw new Error(
-        `Không thể gửi tin nhắn: ${error instanceof Error ? error.message : "Lỗi không xác định"}`
+        `Không thể gửi tin nhắn: ${
+          error instanceof Error ? error.message : "Lỗi không xác định"
+        }`
       );
     }
   }
-
   async inviteMember(roomId: string, userId: string): Promise<void> {
     if (!userId.trim()) {
       throw new Error("User ID không được để trống.");
@@ -221,7 +231,9 @@ export class ChatService {
       await client.invite(roomId, userId);
     } catch (error) {
       throw new Error(
-        `Không thể mời thành viên: ${error instanceof Error ? error.message : "Lỗi không xác định"}`
+        `Không thể mời thành viên: ${
+          error instanceof Error ? error.message : "Lỗi không xác định"
+        }`
       );
     }
   }
@@ -259,17 +271,19 @@ export class ChatService {
     room: Room,
     client: MatrixClient
   ): Promise<Partial<RoomData> | null> {
-    if (event.getType() !== 'm.room.message') return null;
+    if (event.getType() !== "m.room.message") return null;
     const roomId = event.getRoomId();
     if (!roomId) return null;
 
     const content = event.getContent();
     const senderId = event.getSender();
-    const senderName = senderId ? client.getUser(senderId)?.displayName || senderId : 'Unknown';
+    const senderName = senderId
+      ? client.getUser(senderId)?.displayName || senderId
+      : "Unknown";
 
     return {
       roomId,
-      lastMessage: content.body || 'Tin nhắn không có nội dung',
+      lastMessage: content.body || "Tin nhắn không có nội dung",
       timestamp: formatTimestamp(event.getTs()),
       ts: event.getTs(),
       sender: senderName,
@@ -286,29 +300,40 @@ export class ChatService {
     event: MatrixEvent,
     client: MatrixClient
   ): Promise<ChatMessage | null> {
-    if (event.getType() !== 'm.room.message') return null;
+    if (event.getType() !== "m.room.message") return null;
     const senderId = event.getSender();
     if (!senderId) return null;
 
     let avatarUrl: string | null | undefined;
     try {
       const profile = await client.getProfileInfo(senderId);
-      avatarUrl = profile.avatar_url ? client.mxcUrlToHttp(profile.avatar_url) : undefined;
+      avatarUrl = profile.avatar_url
+        ? client.mxcUrlToHttp(profile.avatar_url)
+        : undefined;
     } catch (err) {
       console.error(`Lỗi khi lấy avatar cho ${senderId}:`, err);
     }
 
     const timestamp = event.getTs();
-    if (typeof timestamp !== 'number' || isNaN(timestamp)) {
-      console.warn(`Timestamp không hợp lệ cho sự kiện ${event.getId()}:`, timestamp);
+    if (typeof timestamp !== "number" || isNaN(timestamp)) {
+      console.warn(
+        `Timestamp không hợp lệ cho sự kiện ${event.getId()}:`,
+        timestamp
+      );
     }
+
+    const eventId = event.getId();
+    if (!eventId) return null; // ✅ Bỏ qua nếu chưa có eventId (đề phòng Matrix chưa sync xong)
 
     return {
       sender: senderId,
-      body: event.getContent()?.body || '',
-      eventId: event.getId() || `msg-${Date.now()}`,
+      body: event.getContent()?.body || "",
+      eventId, // ✅ Dùng đúng eventId
       avatarUrl,
-      timestamp: typeof timestamp === 'number' && !isNaN(timestamp) ? timestamp : Date.now(),
+      timestamp:
+        typeof timestamp === "number" && !isNaN(timestamp)
+          ? timestamp
+          : Date.now(),
     };
   }
 }

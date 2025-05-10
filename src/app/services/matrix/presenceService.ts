@@ -1,26 +1,41 @@
-import { MatrixClient, ClientEvent } from 'matrix-js-sdk';
+import { MatrixClient, ClientEvent } from "matrix-js-sdk";
 
 interface PresenceData {
   userId: string;
-  presence: 'online' | 'offline' | 'unavailable';
+  presence: "online" | "offline" | "unavailable";
   statusMsg?: string;
   lastActiveAgo?: number;
 }
+
+type PresenceEvent =
+  | {
+      getSender: () => string;
+      getContent: () => {
+        userId: string;
+        presence: string;
+        statusMsg?: string;
+      };
+    }
+  | {
+      type: "read";
+      userId: string;
+      roomId: string;
+    };
 
 export class PresenceService {
   private static instance: PresenceService;
   private presenceMap: Map<string, PresenceData> = new Map();
   private client: MatrixClient | null = null;
-  private ws: WebSocket | null = null;
+  public ws: WebSocket | null = null;
   private lastActivity: number = Date.now();
-  private inactivityTimeout: number = 5 * 60 * 1000; // 5 phút
+  private inactivityTimeout: number = 5 * 60 * 1000;
   private inactivityTimer: NodeJS.Timeout | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private presenceCallbacks: Array<(event: any) => void> = [];
+  private presenceCallbacks: Array<(event: PresenceEvent) => void> = [];
+  private readCallbacks: Array<(userId: string, roomId: string) => void> = [];
 
   private constructor() {
-    if (typeof window !== 'undefined') {
-      ['mousemove', 'keydown', 'click'].forEach((event) => {
+    if (typeof window !== "undefined") {
+      ["mousemove", "keydown", "click"].forEach((event) => {
         window.addEventListener(event, () => {
           this.lastActivity = Date.now();
           this.checkInactivity();
@@ -39,60 +54,78 @@ export class PresenceService {
   public async initialize(client: MatrixClient): Promise<void> {
     this.client = client;
 
-    // Kết nối đến WebSocket server
-    const userId = this.client.getUserId() || '';
+    const userId = this.client.getUserId() || "";
     this.ws = new WebSocket(`ws://localhost:8080?userId=${userId}`);
 
     this.ws.onopen = () => {
       console.log(`[WS] Connected to WebSocket server for ${userId}`);
-      this.updatePresence('online', 'online').catch((err) =>
-        console.error('[ERROR] Lỗi đặt trạng thái Online:', err)
+      this.updatePresence("online", "online").catch((err) =>
+        console.error("[ERROR] Failed to set Online status:", err)
       );
     };
 
     this.ws.onmessage = (event) => {
       try {
-        const { userId, presence, statusMsg } = JSON.parse(event.data);
+        const data = JSON.parse(event.data);
+
+        if (data.type === "read" && data.userId && data.roomId) {
+          console.log(
+            `[WS] Received read event: ${data.userId} read room ${data.roomId}`
+          );
+          this.readCallbacks.forEach((cb) => cb(data.userId, data.roomId));
+          return;
+        }
+
+        const { userId, presence, statusMsg } = data;
         this.presenceMap.set(userId, {
           userId,
           presence,
           statusMsg,
           lastActiveAgo: 0,
         });
-        console.log(`[WS] Received presence for ${userId}: ${presence}, ${statusMsg}`);
+        console.log(
+          `[WS] Received presence for ${userId}: ${presence}, ${statusMsg}`
+        );
         this.presenceCallbacks.forEach((cb) =>
-          cb({ getSender: () => userId, getContent: () => ({ userId, presence, statusMsg }) })
+          cb({
+            getSender: () => userId,
+            getContent: () => ({ userId, presence, statusMsg }),
+          })
         );
       } catch (error) {
-        console.error('[WS] Error parsing WebSocket message:', error);
+        console.error("[WS] Error parsing WebSocket message:", error);
       }
     };
 
     this.ws.onerror = (error) => {
-      console.error('[WS] WebSocket error:', error);
+      console.error("[WS] WebSocket error:", error);
     };
 
     this.ws.onclose = () => {
-      console.log('[WS] WebSocket connection closed, attempting to reconnect');
+      console.log("[WS] WebSocket connection closed, attempting to reconnect");
       this.ws = null;
       setTimeout(() => {
         if (this.client) {
-          this.ws = new WebSocket(`ws://localhost:8080?userId=${this.client.getUserId() || ''}`);
+          this.ws = new WebSocket(
+            `ws://localhost:8080?userId=${this.client.getUserId() || ""}`
+          );
           this.ws.onopen = () => {
-            console.log('[WS] Reconnected to WebSocket server');
-            this.updatePresence('online', 'online').catch((err) =>
-              console.error('[ERROR] Failed to set online status after reconnect:', err)
+            console.log("[WS] Reconnected to WebSocket server");
+            this.updatePresence("online", "online").catch((err) =>
+              console.error(
+                "[ERROR] Failed to set online after reconnect:",
+                err
+              )
             );
           };
         }
       }, 1000);
     };
 
-    // Lắng nghe sự kiện ngắt kết nối Matrix
     this.client.on(ClientEvent.Sync, (state: string) => {
-      if (state === 'ERROR' || state === 'STOPPED') {
-        this.updatePresence('offline', '').catch((err) =>
-          console.error('[ERROR] Lỗi đặt trạng thái Offline:', err)
+      if (state === "ERROR" || state === "STOPPED") {
+        this.updatePresence("offline", "").catch((err) =>
+          console.error("[ERROR] Failed to set Offline status:", err)
         );
       }
     });
@@ -102,13 +135,19 @@ export class PresenceService {
 
   private checkInactivity(): void {
     const now = Date.now();
-    if (now - this.lastActivity > this.inactivityTimeout && this.presenceMap.get(this.client?.getUserId() || '')?.presence !== 'unavailable') {
-      this.updatePresence('unavailable', 'Không hoạt động').catch((err) =>
-        console.error('[ERROR] Lỗi đặt trạng thái Unavailable:', err)
+    const selfPresence = this.presenceMap.get(
+      this.client?.getUserId() || ""
+    )?.presence;
+    if (
+      now - this.lastActivity > this.inactivityTimeout &&
+      selfPresence !== "unavailable"
+    ) {
+      this.updatePresence("unavailable", "Inactive").catch((err) =>
+        console.error("[ERROR] Failed to set Unavailable:", err)
       );
-    } else if (this.presenceMap.get(this.client?.getUserId() || '')?.presence !== 'online') {
-      this.updatePresence('online', 'online').catch((err) =>
-        console.error('[ERROR] Lỗi đặt trạng thái Online:', err)
+    } else if (selfPresence !== "online") {
+      this.updatePresence("online", "online").catch((err) =>
+        console.error("[ERROR] Failed to restore Online:", err)
       );
     }
 
@@ -119,27 +158,33 @@ export class PresenceService {
   public getPresence(userId: string): PresenceData {
     const data = this.presenceMap.get(userId) || {
       userId,
-      presence: 'offline',
-      statusMsg: '',
+      presence: "offline",
+      statusMsg: "",
       lastActiveAgo: 0,
     };
     console.log(`[DEBUG] Get presence for ${userId}:`, data);
     return data;
   }
 
-  public async updatePresence(presence: 'online' | 'offline' | 'unavailable', statusMsg?: string): Promise<void> {
+  public async updatePresence(
+    presence: "online" | "offline" | "unavailable",
+    statusMsg?: string
+  ): Promise<void> {
     if (!this.ws || !this.client) {
-      console.warn('[WS] WebSocket or client not initialized, skipping presence update');
+      console.warn("[WS] WebSocket or client not initialized");
       return;
     }
     if (this.ws.readyState !== WebSocket.OPEN) {
-      console.warn('[WS] WebSocket not connected, attempting to reconnect');
-      this.ws = new WebSocket(`ws://localhost:8080?userId=${this.client.getUserId() || ''}`);
+      console.warn("[WS] WebSocket not open, reconnecting...");
+      this.ws = new WebSocket(
+        `ws://localhost:8080?userId=${this.client.getUserId() || ""}`
+      );
       await new Promise((resolve) => {
         this.ws!.onopen = () => resolve(undefined);
       });
     }
-    const userId = this.client.getUserId() || '';
+
+    const userId = this.client.getUserId() || "";
     this.ws.send(JSON.stringify({ presence, statusMsg }));
     this.presenceMap.set(userId, {
       userId,
@@ -147,14 +192,16 @@ export class PresenceService {
       statusMsg,
       lastActiveAgo: 0,
     });
-    console.log(`[WS] Updated presence for ${userId}: ${presence}, ${statusMsg}`);
+    console.log(
+      `[WS] Updated presence for ${userId}: ${presence}, ${statusMsg}`
+    );
   }
 
   public disconnect(): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.close();
       this.ws = null;
-      console.log('[WS] Disconnected from WebSocket server');
+      console.log("[WS] Disconnected from WebSocket server");
     }
     if (this.inactivityTimer) {
       clearTimeout(this.inactivityTimer);
@@ -162,13 +209,21 @@ export class PresenceService {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public onPresenceEvent(callback: (event: any) => void): void {
+  public onPresenceEvent(callback: (event: PresenceEvent) => void): void {
     this.presenceCallbacks.push(callback);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  public offPresenceEvent(callback: (event: any) => void): void {
-    this.presenceCallbacks = this.presenceCallbacks.filter((cb) => cb !== callback);
+  public offPresenceEvent(callback: (event: PresenceEvent) => void): void {
+    this.presenceCallbacks = this.presenceCallbacks.filter(
+      (cb) => cb !== callback
+    );
+  }
+
+  public onRead(callback: (userId: string, roomId: string) => void): void {
+    this.readCallbacks.push(callback);
+  }
+
+  public offRead(callback: (userId: string, roomId: string) => void): void {
+    this.readCallbacks = this.readCallbacks.filter((cb) => cb !== callback);
   }
 }
