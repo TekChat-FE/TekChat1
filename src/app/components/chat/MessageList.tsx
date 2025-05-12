@@ -10,7 +10,7 @@ interface MessageListProps {
     eventId: string;
     avatarUrl?: string | null | undefined;
     timestamp: number;
-    status?: "sending" | "sent" | "delivered" | "read";
+  status?: "sending" | "sent" | "delivered" | "read" | "error";
   }>;
   currentUserId: string;
   deliveredEventId?: string | null;

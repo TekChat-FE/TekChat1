@@ -1,3 +1,4 @@
+// src/app/chat/[roomId]/chatView.tsx
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -91,44 +92,20 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       const currentUserId = matrixClient.getUserId();
       const isOwnMessage = newMessage.sender === currentUserId;
 
+      // Bỏ qua tin nhắn của chính người gửi
+      if (isOwnMessage) return;
+
       // Gửi "delivered" nếu là tin của người khác
-      if (!isOwnMessage) {
-        PresenceService.getInstance().ws?.send(
-          JSON.stringify({ type: "delivered", roomId })
-        );
-      }
+      PresenceService.getInstance().ws?.send(
+        JSON.stringify({ type: "delivered", roomId })
+      );
 
       setMessages((prev) => {
-        const currentUser = matrixClient.getUserId();
-        const isOwn = newMessage.sender === currentUser;
-
-        // Nếu là message của chính mình & là phản hồi của sending
-        if (isOwn) {
-          // Tìm bản sending gần nhất có cùng nội dung & thời gian gần
-          const index = prev.findIndex(
-            (m) =>
-              m.status === "sending" &&
-              m.body === newMessage.body &&
-              Math.abs(m.timestamp - newMessage.timestamp) < 3000
-          );
-
-          if (index !== -1) {
-            const updated = [...prev];
-            updated[index] = { ...newMessage, status: "sent" };
-            console.log("✅ Replace sending:", {
-              temp: prev[index],
-              final: newMessage,
-            });
-            return updated;
-          }
-        }
-
         // Nếu eventId đã có thì bỏ qua (tránh lặp)
         if (prev.some((m) => m.eventId === newMessage.eventId)) {
           return prev;
         }
-
-        // Thêm mới
+        // Thêm tin nhắn mới
         return [...prev, newMessage];
       });
     },
@@ -148,9 +125,9 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     });
 
     return () => {
-      cleanup?.(); // ✅ Cleanup để không nhân đôi listener
+      cleanup?.(); // Cleanup để không nhân đôi listener
     };
-  }, [handleNewMessage]); // ✅ Dùng handleNewMessage đã ổn định
+  }, [handleNewMessage]);
 
   useEffect(() => {
     const currentUserId = matrixClient.getUserId();
@@ -186,7 +163,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           roomId,
         })
       );
-    }, 2000);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [roomId]);
@@ -249,15 +226,25 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       () => chatService.sendMessage(roomId, messageText, tempEventId),
       "Không thể gửi tin nhắn.",
       setError
-    ).catch(() => {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.eventId === tempEventId
-            ? { ...msg, body: `Lỗi gửi: ${messageText}` }
-            : msg
-        )
-      );
-    });
+    )
+      .then((eventId) => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.eventId === tempEventId
+              ? { ...msg, eventId, status: "sent" }
+              : msg
+          )
+        );
+      })
+      .catch(() => {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.eventId === tempEventId
+              ? { ...msg, body: `Lỗi gửi: ${messageText}`, status: "error" }
+              : msg
+          )
+        );
+      });
   };
 
   const handleInviteMember = async () => {

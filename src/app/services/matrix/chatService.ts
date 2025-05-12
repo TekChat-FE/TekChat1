@@ -22,7 +22,7 @@ export interface ChatMessage {
   avatarUrl?: string | null | undefined;
   timestamp: number;
   tempId?: string;
-  status?: "sending" | "sent" | "delivered" | "read";
+  status?: "sending" | "sent" | "delivered" | "read" | "error";
 }
 
 export class ChatService {
