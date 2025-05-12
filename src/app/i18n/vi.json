@@ -15,7 +15,9 @@
       "message2Aria": "Người dùng B nói: Tuyệt! Còn bạn thì sao?"
     },
     "userAAvatar": "Hình đại diện của Người dùng A",
-    "userBAvatar": "Hình đại diện của Người dùng B"
+    "userBAvatar": "Hình đại diện của Người dùng B",
+    "existingSession": "Đã có một phiên hoạt động. Vui lòng đăng xuất khỏi các thiết bị khác để tiếp tục.",
+    "sessionVerificationFailed": "Xác minh phiên thất bại. Vui lòng thử đăng nhập lại."
   },
   "Profile": {
     "title": "Hồ sơ của bạn",

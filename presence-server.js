@@ -32,6 +32,24 @@ wss.on('connection', (ws, req) => {
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message);
+
+      // ✅ Xử lý sự kiện read room
+      if (data.type === 'read' && data.roomId) {
+        const payload = {
+          type: 'read',
+          userId,
+          roomId: data.roomId,
+        };
+        const broadcast = JSON.stringify(payload);
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(broadcast);
+          }
+        });
+        console.log(`[WS] Broadcast read: ${userId} read room ${data.roomId}`);
+        return;
+      }
+
       const { presence, statusMsg } = data;
       if (['online', 'offline', 'unavailable'].includes(presence)) {
         presenceMap.set(userId, { presence, statusMsg });

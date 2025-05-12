@@ -1,3 +1,4 @@
+// src/app/chat/[roomId]/chatView.tsx
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -12,16 +13,13 @@ import CallModal from "@/app/components/call/CallModal";
 import VoiceCallUI from "@/app/components/call/VoiceCallUI";
 import VideoCallUI from "@/app/components/call/VideoCallUI";
 import SearchList from "@/app/components/chat/SearchList";
-import { RoomEvent } from "matrix-js-sdk/lib/models/room";
+import { PresenceService } from "@/app/services/matrix/presenceService";
 
 interface ChatViewProps {
   matrixClient: MatrixClient;
   roomId: string;
 }
 
-/**
- * ChatView component displays messages and manages interactions for a specific room.
- */
 const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const router = useRouter();
   const { state, startCall } = useCall();
@@ -30,13 +28,14 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [roomName, setRoomName] = useState<string>("");
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [inviteUserId, setInviteUserId] = useState("");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Chỉnh lại giá trị mặc định là false
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<ChatMessage[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [readEventId, setReadEventId] = useState<string | null>(null);
   const [deliveredEventId, setDeliveredEventId] = useState<string | null>(null);
 
   const fetchRoomData = useCallback(async () => {
@@ -47,21 +46,71 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
         chatService.getRoomMessages(roomId),
       ]);
 
-      console.log("Dữ liệu phòng:", {
-        roomName,
-        members,
-        messages: fetchedMessages,
-      });
-
       setRoomName(roomName);
       setMembers(members);
       setMessages(fetchedMessages);
+      const storedDelivered = localStorage.getItem(`delivered-${roomId}`);
+      const storedRead = localStorage.getItem(`read-${roomId}`);
+      const currentUserId = matrixClient.getUserId();
+
+      // Tìm lại tin nhắn của chính mình trùng với ID đã lưu
+      if (storedDelivered) {
+        const matchedDelivered = fetchedMessages.find(
+          (m) => m.sender === currentUserId && m.eventId === storedDelivered
+        );
+        if (matchedDelivered) {
+          setDeliveredEventId(matchedDelivered.eventId);
+        }
+      }
+
+      if (storedRead) {
+        const matchedRead = fetchedMessages.find(
+          (m) => m.sender === currentUserId && m.eventId === storedRead
+        );
+        if (matchedRead) {
+          setReadEventId(matchedRead.eventId);
+        }
+      }
+
       setError(null);
     } catch (err) {
       console.error("Lỗi trong fetchRoomData:", err);
       setError("Không thể tải dữ liệu phòng chat.");
     }
-  }, [roomId]);
+  }, [roomId, matrixClient]);
+
+  const handleNewMessage = useCallback(
+    async (event: MatrixEvent, room?: Room) => {
+      if (!room || room.roomId !== roomId) return;
+
+      const newMessage = await chatService.processChatMessage(
+        event,
+        matrixClient
+      );
+      if (!newMessage) return;
+
+      const currentUserId = matrixClient.getUserId();
+      const isOwnMessage = newMessage.sender === currentUserId;
+
+      // Bỏ qua tin nhắn của chính người gửi
+      if (isOwnMessage) return;
+
+      // Gửi "delivered" nếu là tin của người khác
+      PresenceService.getInstance().ws?.send(
+        JSON.stringify({ type: "delivered", roomId })
+      );
+
+      setMessages((prev) => {
+        // Nếu eventId đã có thì bỏ qua (tránh lặp)
+        if (prev.some((m) => m.eventId === newMessage.eventId)) {
+          return prev;
+        }
+        // Thêm tin nhắn mới
+        return [...prev, newMessage];
+      });
+    },
+    [roomId, matrixClient]
+  );
 
   useEffect(() => {
     setLoading(true);
@@ -69,70 +118,92 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   }, [fetchRoomData]);
 
   useEffect(() => {
-    const setupListeners = async () => {
-      // Lắng nghe tin nhắn mới
-      const handleNewMessage = async (event: MatrixEvent, room?: Room) => {
-        if (!room || room.roomId !== roomId) return;
-
-        const newMessage = await chatService.processChatMessage(
-          event,
-          matrixClient
-        );
-        if (!newMessage) return;
-
-        const currentUserId = matrixClient.getUserId();
-        if (currentUserId && newMessage.sender === currentUserId) return;
-
-        setMessages((prev) => {
-          if (prev.some((msg) => msg.eventId === newMessage.eventId))
-            return prev;
-          return [...prev, newMessage];
-        });
-      };
-
-      const removeMessageListener = await chatService.onNewMessage(
-        handleNewMessage
-      );
-
-      // ✅ Lắng nghe mọi hoạt động trong phòng (timeline event)
-      const handleRoomTimelineEvent = (event: MatrixEvent, room?: Room) => {
-        if (!room || room.roomId !== roomId) return;
-
-        const sender = event.getSender();
-        const currentUserId = matrixClient.getUserId();
-        if (!currentUserId || sender === currentUserId) return;
-
-        const lastOwnMessage = messages
-          .filter((m) => m.sender === currentUserId)
-          .at(-1);
-
-        if (lastOwnMessage) {
-          setDeliveredEventId(lastOwnMessage.eventId);
-        }
-      };
-
-      // 👇 Đăng ký listener đúng kiểu
-      matrixClient.on(RoomEvent.Timeline, handleRoomTimelineEvent);
-
-      // ✅ Cleanup
-      return () => {
-        removeMessageListener?.();
-        matrixClient.removeListener(
-          RoomEvent.Timeline,
-          handleRoomTimelineEvent
-        );
-      };
-    };
-
     let cleanup: (() => void) | undefined;
-    setupListeners().then((removeListener) => {
+
+    chatService.onNewMessage(handleNewMessage).then((removeListener) => {
       cleanup = removeListener;
     });
 
     return () => {
-      if (cleanup) cleanup();
+      cleanup?.(); // Cleanup để không nhân đôi listener
     };
-  }, [roomId, matrixClient, messages]);
+  }, [handleNewMessage]);
+
+  useEffect(() => {
+    const currentUserId = matrixClient.getUserId();
+    const recipient = members.find((m) => m.userId !== currentUserId);
+    if (!recipient) return;
+
+    const presence = PresenceService.getInstance();
+
+    const handlePresence = () => {
+      const userPresence = presence.getPresence(recipient.userId);
+      if (userPresence.presence === "online") {
+        const lastOwnMessage = messages
+          .filter((m) => m.sender === currentUserId)
+          .at(-1);
+        if (lastOwnMessage) {
+          setDeliveredEventId(lastOwnMessage.eventId);
+        }
+      }
+    };
+
+    presence.onPresenceEvent(handlePresence);
+    handlePresence();
+
+    return () => presence.offPresenceEvent(handlePresence);
+  }, [members, messages, matrixClient]);
+
+  // Gửi định kỳ READ mỗi 1s nếu vẫn ở trong phòng
+  useEffect(() => {
+    const interval = setInterval(() => {
+      PresenceService.getInstance().ws?.send(
+        JSON.stringify({
+          type: "read",
+          roomId,
+        })
+      );
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [roomId]);
+
+  useEffect(() => {
+    const currentUserId = matrixClient.getUserId();
+
+    const handleRead = (userId: string, rId: string) => {
+      if (rId !== roomId || userId === currentUserId) return;
+
+      const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
+      if (lastMsg) {
+        setReadEventId(lastMsg.eventId);
+      }
+    };
+
+    const presence = PresenceService.getInstance();
+    presence.onRead(handleRead);
+    return () => presence.offRead(handleRead);
+  }, [roomId, messages, matrixClient]);
+
+  useEffect(() => {
+    const storedDelivered = localStorage.getItem(`delivered-${roomId}`);
+    if (storedDelivered) setDeliveredEventId(storedDelivered);
+
+    const storedRead = localStorage.getItem(`read-${roomId}`);
+    if (storedRead) setReadEventId(storedRead);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (deliveredEventId) {
+      localStorage.setItem(`delivered-${roomId}`, deliveredEventId);
+    }
+  }, [deliveredEventId, roomId]);
+
+  useEffect(() => {
+    if (readEventId) {
+      localStorage.setItem(`read-${roomId}`, readEventId);
+    }
+  }, [readEventId, roomId]);
 
   const handleSendMessage = async () => {
     if (!messageText.trim()) return;
@@ -143,21 +214,25 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       sender: currentUserId || "Bạn",
       body: messageText,
       eventId: tempEventId,
+      tempId: tempEventId,
       avatarUrl: undefined,
       timestamp: Date.now(),
+      status: "sending",
     };
     setMessages((prev) => [...prev, newMessage]);
     setMessageText("");
 
     await withErrorHandling(
-      () => chatService.sendMessage(roomId, messageText),
+      () => chatService.sendMessage(roomId, messageText, tempEventId),
       "Không thể gửi tin nhắn.",
       setError
     )
       .then((eventId) => {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.eventId === tempEventId ? { ...msg, eventId } : msg
+            msg.eventId === tempEventId
+              ? { ...msg, eventId, status: "sent" }
+              : msg
           )
         );
       })
@@ -165,7 +240,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.eventId === tempEventId
-              ? { ...msg, body: `Lỗi gửi: ${messageText}` }
+              ? { ...msg, body: `Lỗi gửi: ${messageText}`, status: "error" }
               : msg
           )
         );
@@ -362,7 +437,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                   setIsSearchOpen(false);
                   setTimeout(() => {
                     element.classList.remove("bg-yellow-100");
-                  }, 1000);
+                  }, 1500);
                 }
               }}
             />
@@ -396,6 +471,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               messages={messages}
               currentUserId={currentUserId}
               deliveredEventId={deliveredEventId}
+              readEventId={readEventId}
             />
           </>
         )}

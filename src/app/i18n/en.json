@@ -15,7 +15,9 @@
       "message2Aria": "User B says: Great! How about you?"
     },
     "userAAvatar": "Avatar of User A",
-    "userBAvatar": "Avatar of User B"
+    "userBAvatar": "Avatar of User B",
+    "existingSession": "An active session already exists. Please log out from other devices to continue.",
+    "sessionVerificationFailed": "Session verification failed. Please try logging in again."
   },
   "Profile": {
     "title": "Your Profile",
@@ -157,6 +159,7 @@
   "MessageList": {
     "sending": "Sending...",
     "sent": "Sent",
-    "delivered": "Delivered"
+    "delivered": "Delivered",
+    "read": "Read"
   }
 }

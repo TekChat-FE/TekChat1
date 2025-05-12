@@ -48,8 +48,17 @@ const ChatRoomPage = () => {
     init();
   }, [params?.roomId, matrixClient, initializeClient, router]);
 
-  if (error) return <p>Lỗi: {error}</p>;
-  if (isInitializing || !matrixClient || !roomId) return <p>Đang tải...</p>;
+  if (error) return <p className="text-red-500 text-center mt-5">Lỗi: {error}</p>;
+  if (isInitializing || !matrixClient || !roomId) {
+    return (
+      <div
+        className="flex justify-center items-center h-screen"
+        aria-label="Loading chat room"
+      >
+        <div className="w-10 h-10 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return <ChatView matrixClient={matrixClient} roomId={roomId} />;
 };
