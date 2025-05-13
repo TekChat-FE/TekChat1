@@ -96,7 +96,9 @@
     "tokenCopyFailed": "Failed to copy access token.",
     "copy": "Copy",
     "close": "Close",
-    "closeModal": "Close modal"
+    "closeModal": "Close modal",
+    "newGroup": "New Group",
+    "newContact": "New Contact"
   },
   "Footer": {
     "contacts": "Contacts",

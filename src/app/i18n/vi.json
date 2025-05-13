@@ -96,7 +96,9 @@
     "tokenCopyFailed": "Không thể sao chép mã truy cập.",
     "copy": "Sao chép",
     "close": "Đóng",
-    "closeModal": "Đóng modal"
+    "closeModal": "Đóng modal",
+    "newGroup": "Tạo Nhóm Mới",
+    "newContact": "Tạo Liên Hệ Mới"
   },
   "Footer": {
     "contacts": "Danh bạ",

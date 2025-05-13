@@ -12,7 +12,6 @@ interface CreateRoomModalProps {
 const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onCreate }) => {
   const t = useTranslations('CreateRoomModal');
   const [roomName, setRoomName] = useState<string>('');
-  const [isGroup, setIsGroup] = useState<boolean>(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,9 +19,8 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onCr
       alert(t('errorEmptyRoomName'));
       return;
     }
-    await onCreate(roomName, isGroup);
+    await onCreate(roomName, true); // Always create as a group
     setRoomName('');
-    setIsGroup(false);
     onClose();
   };
 
@@ -42,30 +40,6 @@ const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose, onCr
             placeholder={t('roomNamePlaceholder')}
             className="w-full p-2 mb-4 border border-gray-400 dark:border-gray-600 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring focus:ring-blue-500"
           />
-          <div className="flex flex-col gap-2 mb-4">
-            <button
-              type="button"
-              onClick={() => setIsGroup(false)}
-              className={`px-4 py-2 rounded-md ${
-                !isGroup
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-white'
-              } hover:bg-blue-600`}
-            >
-              {t('newContactButton')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsGroup(true)}
-              className={`px-4 py-2 rounded-md ${
-                isGroup
-                  ? 'bg-green-500 text-white'
-                  : 'bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-white'
-              } hover:bg-green-600`}
-            >
-              {t('newGroupButton')}
-            </button>
-          </div>
           <div className="flex justify-end gap-2">
             <button
               type="button"

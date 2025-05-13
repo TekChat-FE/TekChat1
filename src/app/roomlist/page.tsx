@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from 'next-intl';
 import roomService from "@/app/services/matrix/roomService";
@@ -14,7 +14,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { PlusCircle, Key, X } from "lucide-react";
 import { MatrixEvent, Room as MatrixRoom } from "matrix-js-sdk";
 
-// Đổi tên interface Room thành RoomData để tránh xung đột
+// Rename interface Room to RoomData to avoid conflict
 interface RoomData {
   roomId: string;
   name: string;
@@ -25,7 +25,7 @@ interface RoomData {
   sender?: string;
 }
 
-// Hàm sắp xếp phòng theo timestamp
+// Sort rooms by timestamp
 const sortRoomsByTimestamp = (rooms: RoomData[]): RoomData[] => {
   return rooms.sort((a, b) => (b.ts || 0) - (a.ts || 0));
 };
@@ -38,16 +38,18 @@ const RoomList: React.FC = () => {
   const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [isClientReady, setIsClientReady] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const router = useRouter();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Kiểm tra trạng thái đăng nhập và đồng bộ client
+  // Check login status and sync client
   useEffect(() => {
     const checkLoginAndSync = async () => {
       try {
         await authService.getAuthenticatedClient();
         setIsClientReady(true);
       } catch (err) {
-        console.error('Lỗi khi kiểm tra đăng nhập hoặc đồng bộ client:', err);
+        console.error('Error checking login or syncing client:', err);
         router.push('/auth/login');
       }
     };
@@ -55,7 +57,7 @@ const RoomList: React.FC = () => {
     checkLoginAndSync();
   }, [router]);
 
-  // Tải danh sách phòng
+  // Load room list
   const loadRooms = useCallback(async () => {
     if (!isClientReady) return;
     setLoading(true);
@@ -63,7 +65,7 @@ const RoomList: React.FC = () => {
       const data = await roomService.fetchJoinedRooms();
       setRooms(sortRoomsByTimestamp(data));
     } catch (error) {
-      console.error("Lỗi khi tải danh sách phòng:", error);
+      console.error("Error loading rooms:", error);
       toast.error(t('createRoomError'), {
         position: 'top-center',
         autoClose: 3000,
@@ -79,13 +81,13 @@ const RoomList: React.FC = () => {
     }
   }, [isClientReady, t]);
 
-  // Cập nhật danh sách phòng với tin nhắn mới
+  // Update room list with new messages
   const updateRoomList = useCallback((updatedRoom: Partial<RoomData>) => {
-    console.log('Cập nhật phòng với tin nhắn mới:', updatedRoom);
+    console.log('Updating room with new message:', updatedRoom);
     setRooms((prevRooms) => {
       const existingRoom = prevRooms.find((r) => r.roomId === updatedRoom.roomId);
       if (existingRoom && existingRoom.ts && updatedRoom.ts && existingRoom.ts >= updatedRoom.ts) {
-        return prevRooms; // Bỏ qua nếu tin nhắn cũ hơn
+        return prevRooms; // Skip if message is older
       }
       const updatedRooms = prevRooms.map((r) =>
         r.roomId === updatedRoom.roomId ? { ...r, ...updatedRoom } : r
@@ -94,7 +96,7 @@ const RoomList: React.FC = () => {
     });
   }, []);
 
-  // Lắng nghe tin nhắn mới
+  // Listen for new messages
   useEffect(() => {
     if (!isClientReady) return;
     loadRooms();
@@ -124,12 +126,26 @@ const RoomList: React.FC = () => {
     };
   }, [isClientReady, loadRooms, updateRoomList]);
 
-  // Lọc phòng theo tìm kiếm
+  // Handle clicks outside dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Filter rooms by search
   const filteredRooms = rooms.filter((room) =>
     room.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Xử lý hiển thị modal access token
+  // Handle access token modal display
   const handleGetAccessToken = () => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
@@ -148,7 +164,7 @@ const RoomList: React.FC = () => {
     }
   };
 
-  // Xử lý sao chép access token
+  // Handle copying access token
   const handleCopyToken = async () => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
@@ -180,21 +196,52 @@ const RoomList: React.FC = () => {
     }
   };
 
+  // Handle dropdown option selection
+  const handleDropdownSelect = (option: string) => {
+    if (option === 'newGroup') {
+      setShowCreateRoomModal(true);
+    } else if (option === 'newContact') {
+      // Placeholder for New Contact functionality
+      console.log('New Contact selected');
+    }
+    setShowDropdown(false);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-100 max-w-md mx-auto">
       <ToastContainer />
-
       {/* Header */}
       <header className="p-4 bg-white shadow-md flex items-center justify-between">
         <button className="text-blue-500 text-sm font-medium">{t('edit')}</button>
         <h1 className="text-lg font-semibold text-gray-800">{t('title')}</h1>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 relative">
           <button onClick={handleGetAccessToken} className="text-blue-500">
             <Key className="h-6 w-6" />
           </button>
-          <button onClick={() => setShowCreateRoomModal(true)} className="text-blue-500">
-            <PlusCircle className="h-6 w-6" />
-          </button>
+          <div ref={dropdownRef}>
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="text-blue-500"
+            >
+              <PlusCircle className="h-6 w-6" />
+            </button>
+            {showDropdown && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                <button
+                  onClick={() => handleDropdownSelect('newGroup')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  {t('newGroup')}
+                </button>
+                <button
+                  onClick={() => handleDropdownSelect('newContact')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  {t('newContact')}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -259,7 +306,7 @@ const RoomList: React.FC = () => {
             );
             loadRooms();
           } catch (error) {
-            console.error('Lỗi khi tạo phòng:', error);
+            console.error('Error creating room:', error);
             toast.error(t('createRoomError'), {
               position: 'top-center',
               autoClose: 3000,
