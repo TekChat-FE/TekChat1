@@ -98,7 +98,8 @@
     "close": "Close",
     "closeModal": "Close modal",
     "newGroup": "New Group",
-    "newContact": "New Contact"
+    "newContact": "New Contact",
+    "createContactSuccess": "Contact created successfully"
   },
   "Footer": {
     "contacts": "Contacts",
@@ -115,8 +116,15 @@
     "newContactButton": "New Contact",
     "newGroupButton": "New Group",
     "errorEmptyRoomName": "Please enter a room name.",
+    "errorNotEnoughMembers": "Requires at least 2 invited members (not counting you).",
+    "errorInvalidUserId": "Invalid User ID format (e.g., @user:matrix.org)",
+    "errorDuplicateUserId": "User ID already exists in the list!",
+    "errorUserNotFound": "User not found!",
+    "errorCheckingUser": "Error checking user. Please try again!",
     "cancelButton": "Cancel",
-    "createButton": "Create"
+    "createButton": "Create",
+    "addMemberPlaceholder": "Enter User ID (e.g., @user:matrix.org)",
+    "addMemberButton": "Add Member"
   },
   "ChatSidebar": {
     "title": "Members",
@@ -125,7 +133,12 @@
     "deleteRoomButton": "Leave Room",
     "closeButton": "Close",
     "online": "Online",
-    "offline": "Offline"
+    "offline": "Offline",
+    "errorEmptyUserId": "Please enter a User ID",
+    "errorInvalidUserId": "Invalid User ID format (e.g., @user:matrix.org)",
+    "errorUserAlreadyInRoom": "This user is already in the room!",
+    "errorUserNotFound": "User not found!",
+    "errorCheckingUser": "Error checking user. Please try again!"
   },
   "CallModal": {
     "incomingVideoCall": "Incoming video call from {callerName}",
@@ -163,5 +176,15 @@
     "sent": "Sent",
     "delivered": "Delivered",
     "read": "Read"
+  },
+  "CreateContactModal": {
+    "title": "New Contact",
+    "userIdLabel": "User ID",
+    "userIdEmpty": "User ID cannot be empty",
+    "userIdInvalid": "Invalid user ID format (e.g., @user:matrix.org)",
+    "create": "Create",
+    "close": "Cancel",
+    "createSuccess": "Contact created successfully",
+    "createError": "Failed to create contact"
   }
 }

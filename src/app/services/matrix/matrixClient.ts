@@ -71,15 +71,15 @@ export class MatrixClientManager {
     }
 
     if (this.client && this.client.getSyncState() !== null) {
-      console.log(`Trả về client đã khởi tạo: ${userId}, trạng thái: ${this.client.getSyncState()}`);
+      console.log(`Return initialized client: ${userId}, state: ${this.client.getSyncState()}`); // eslint-disable-line no-console
       return this.client;
     }
 
     if (this.isInitializing) {
-      console.log(`Đang khởi tạo client cho ${userId}, chờ hoàn tất...`);
+      console.log(`Initializing client for ${userId}, waiting for completion...`); // eslint-disable-line no-console
       await this.syncPromise;
       if (this.client) return this.client;
-      throw new Error("Khởi tạo client thất bại.");
+      throw new Error("Client initialization failed.");
     }
 
     this.isInitializing = true;
@@ -113,7 +113,7 @@ export class MatrixClientManager {
           sessionStorage.setItem(`deviceId_${userId}`, deviceId);
         }
 
-        console.log(`Khởi tạo MatrixClient cho user ${userId} với deviceId: ${deviceId}, baseUrl: ${baseUrl}`);
+        console.log(`Initializing MatrixClient for user ${userId} with deviceId: ${deviceId}, baseUrl: ${baseUrl}`); // eslint-disable-line no-console
 
         this.client = createClient({
           baseUrl,
@@ -133,22 +133,22 @@ export class MatrixClientManager {
         }
 
         this.client.on(ClientEvent.Sync, (state: SyncState, prevState: SyncState | null) => {
-          console.log(`Trạng thái sync cho ${userId} (deviceId: ${deviceId}): ${state} (trước đó: ${prevState})`);
+          console.log(`Sync state for ${userId} (deviceId: ${deviceId}): ${state} (previous: ${prevState})`); // eslint-disable-line no-console
           if (state === "PREPARED" || state === "SYNCING") {
-            console.log(`✅ MatrixClient đã đồng bộ xong cho ${userId}!`);
+            console.log(`✅ MatrixClient is ready for ${userId}!`); // eslint-disable-line no-console
             resolve();
           } else if (state === "ERROR") {
-            console.error(`❌ Lỗi đồng bộ hóa cho ${userId}!`);
-            reject(new Error("Lỗi đồng bộ hóa client."));
+            console.error(`❌ Sync error for ${userId}!`); // eslint-disable-line no-console
+            reject(new Error("Sync error."));
           }
         });
 
         this.client.startClient({ initialSyncLimit: 10 }).catch((error: any) => {
-          console.error(`Lỗi khi khởi động client cho ${userId}:`, error);
-          reject(new Error(`Không thể khởi động client: ${error.message}`));
+          console.error(`Error starting client for ${userId}:`, error);
+          reject(new Error(`Cannot start client: ${error.message}`));
         });
       } catch (error: any) {
-        console.error(`Lỗi khi khởi tạo client cho ${userId}:`, error);
+        console.error(`Error initializing client for ${userId}:`, error);
         reject(error);
       }
     });
@@ -157,7 +157,7 @@ export class MatrixClientManager {
       await this.syncPromise;
       this.isInitializing = false;
       this.syncPromise = null;
-      if (!this.client) throw new Error("Client không được khởi tạo.");
+      if (!this.client) throw new Error("Client not initialized.");
       return this.client;
     } catch (error: any) {
       this.isInitializing = false;

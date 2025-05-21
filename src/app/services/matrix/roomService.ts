@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { MatrixClient, ICreateRoomOpts, Preset, Visibility, Room } from "matrix-js-sdk";
 import authService from "@/app/services/auth/authService";
 
@@ -9,6 +12,7 @@ export interface RoomData {
   ts?: number;
   isGroup?: boolean;
   sender?: string;
+  otherUserId?: string;
 }
 
 export class RoomService {
@@ -18,38 +22,110 @@ export class RoomService {
     return await authService.getAuthenticatedClient();
   }
 
+  async checkUserExists(userId: string): Promise<boolean> {
+    if (!userId.trim() || !/^@[\w.-]+:[\w.-]+$/.test(userId)) {
+      return false;
+    }
+
+    try {
+      const client = await this.getClient();
+      await client.getProfileInfo(userId);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error checking user ${userId}:`, error);
+      return false;
+    }
+  }
+
   async createRoomWithType(roomName: string, isGroup: boolean): Promise<string> {
     if (!roomName.trim()) {
-      throw new Error("Tên phòng không được để trống.");
+      throw new Error("Room name cannot be empty.");
     }
 
     try {
       const client = await this.getClient();
       const roomOptions: ICreateRoomOpts = {
         name: roomName,
-        preset: isGroup ? Preset.PublicChat : Preset.PrivateChat, // PublicChat cho nhóm, PrivateChat cho liên hệ
+        preset: isGroup ? Preset.PublicChat : Preset.PrivateChat,
         visibility: Visibility.Private,
-        invite: isGroup ? [] : undefined, // Không mời ai nếu là nhóm
+        invite: isGroup ? [] : undefined,
       };
 
       const response = await client.createRoom(roomOptions);
-      console.log(`✅ Phòng ${isGroup ? "nhóm" : "liên hệ"} được tạo:`, response.room_id);
+      console.log(`✅ Room ${isGroup ? "group" : "contact"} created:`, response.room_id);
       return response.room_id;
     } catch (error) {
-      console.error("❌ Lỗi khi tạo phòng:", error);
-      throw new Error("Không thể tạo phòng.");
+      console.error("❌ Error creating room:", error);
+      throw new Error(`Cannot create room: ${(error as Error).message}`);
+    }
+  }
+
+  async createDirectMessage(userId: string): Promise<string> {
+    if (!userId.trim() || !/^@[\w.-]+:[\w.-]+$/.test(userId)) {
+      throw new Error("Invalid user ID.");
+    }
+
+    try {
+      const client = await this.getClient();
+      const currentUserId = client.getUserId();
+      if (!currentUserId) {
+        throw new Error("Current user ID not found.");
+      }
+      if (userId === currentUserId) {
+        throw new Error("Cannot create room with yourself.");
+      }
+
+      // Check if user exists
+      try {
+        await client.getProfileInfo(userId);
+      } catch (error) {
+        throw new Error(`User ${userId} does not exist.`);
+      }
+
+      // Create private room with is_direct flag
+      const roomOptions: ICreateRoomOpts = {
+        preset: Preset.PrivateChat,
+        visibility: Visibility.Private,
+        invite: [userId],
+        is_direct: true,
+      };
+
+      const response = await client.createRoom(roomOptions);
+      const roomId = response.room_id;
+      console.log(`✅ DM room created: ${roomId} with ${userId}`);
+
+      // Mark as direct message in account data
+      const accountData = await client.getAccountDataFromServer("m.direct" as any);
+      let dmRooms: Record<string, string[]> = {};
+      if (accountData && typeof accountData === "object") {
+        dmRooms = accountData as unknown as Record<string, string[]>;
+      }
+      dmRooms[currentUserId] = dmRooms[currentUserId] || [];
+      if (!dmRooms[currentUserId].includes(roomId)) {
+        dmRooms[currentUserId].push(roomId);
+        await client.setAccountData('m.direct' as any, dmRooms as unknown as any);
+      }
+
+      return roomId;
+    } catch (error) {
+      console.error("❌ Error creating DM room:", error);
+      throw new Error(`Cannot create DM room: ${(error as Error).message}`);
     }
   }
 
   async deleteRoom(roomId: string): Promise<void> {
     try {
       const client = await this.getClient();
+      const room = client.getRoom(roomId);
+      if (!room) {
+        throw new Error(`Room ${roomId} does not exist.`);
+      }
       await client.leave(roomId);
       await client.forget(roomId);
-      console.log("✅ Đã xóa phòng thành công:", roomId);
+      console.log("✅ Room deleted successfully:", roomId);
     } catch (error) {
-      console.error("❌ Lỗi khi xóa phòng:", error);
-      throw new Error("Không thể xóa phòng.");
+      console.error("❌ Error deleting room:", error);
+      throw new Error(`Cannot delete room: ${(error as Error).message}`);
     }
   }
 
@@ -59,7 +135,7 @@ export class RoomService {
     const events = timeline.getEvents();
 
     if (events.length === 0) {
-      console.log(`⚠️ Phòng ${room.roomId} - Timeline trống, không có sự kiện nào`);
+      console.log(`⚠️ Room ${room.roomId} - Timeline empty, no events found`);
       return { lastMessage: "No messages yet", timestamp: "N/A", ts: 0, sender: "N/A" };
     }
 
@@ -69,7 +145,7 @@ export class RoomService {
       .find(event => event.getType() === "m.room.message");
 
     if (!lastMessageEvent) {
-      console.log(`⚠️ Phòng ${room.roomId} - Không tìm thấy tin nhắn nào`);
+      console.log(`⚠️ Room ${room.roomId} - No messages found`);
       return { lastMessage: "No messages yet", timestamp: "N/A", ts: 0, sender: "N/A" };
     }
 
@@ -85,7 +161,7 @@ export class RoomService {
       ? eventDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       : eventDate.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" });
 
-    console.log(`✅ Phòng ${room.roomId} - Tin nhắn cuối: ${lastMessage}, Thời gian: ${timestamp}, Người gửi: ${senderName}`);
+    console.log(`✅ Room ${room.roomId} - Last message: ${lastMessage}, Time: ${timestamp}, Sender: ${senderName}`);
     return { lastMessage, timestamp, ts: lastMessageEvent.getTs(), sender: senderName };
   }
 
@@ -93,35 +169,43 @@ export class RoomService {
     try {
       const client = await this.getClient();
       const response = await client.getJoinedRooms();
-      console.log("✅ Danh sách phòng đã tham gia:", response.joined_rooms);
+      console.log("✅ Joined rooms list:", response.joined_rooms);
+
+      const currentUserId = client.getUserId();
 
       const rooms: RoomData[] = await Promise.all(
         response.joined_rooms.map(async (roomId: string) => {
           const room = client.getRoom(roomId);
           if (!room) {
-            console.log(`⚠️ Phòng ${roomId} không tồn tại trong client`);
+            console.log(`⚠️ Room ${roomId} does not exist in client`);
             return {
               roomId,
-              name: "Chưa tải phòng",
+              name: "Room not loaded yet",
               lastMessage: "No messages yet",
               timestamp: "N/A",
               ts: 0,
               sender: "N/A",
+              otherUserId: undefined,
             };
           }
 
-          const name = room.name || "Phòng không tên";
-          console.log(`📋 Phòng ${roomId} - Tên: ${name}`);
+          const name = room.name || "Room with no name";
+          console.log(`📋 Room ${roomId} - Name: ${name}`);
 
           const { lastMessage, timestamp, ts, sender } = await this.getLastMessageAndTimestamp(room);
 
           let isGroup = false;
+          let otherUserId = undefined;
           try {
             const members = room.getJoinedMembers();
             isGroup = members.length > 2;
-            console.log(`👥 Phòng ${roomId} - Số thành viên: ${members.length}, Là nhóm: ${isGroup}`);
+            if (!isGroup) {
+              const other = members.find(m => m.userId !== currentUserId);
+              otherUserId = other?.userId;
+            }
+            console.log(`👥 Room ${roomId} - Number of members: ${members.length}, Is group: ${isGroup}`);
           } catch (error) {
-            console.error(`❌ Lỗi khi lấy danh sách thành viên cho phòng ${roomId}:`, error);
+            console.error(`❌ Error getting member list for room ${roomId}:`, error);
           }
 
           return {
@@ -132,16 +216,17 @@ export class RoomService {
             ts,
             isGroup,
             sender,
+            otherUserId,
           };
         })
       );
 
       const sortedRooms = rooms.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-      console.log("📦 Dữ liệu phòng trả về (đã sắp xếp):", sortedRooms);
+      console.log("📦 Room data returned (sorted):", sortedRooms);
       return sortedRooms;
     } catch (error) {
-      console.error("❌ Lỗi khi lấy danh sách phòng:", error);
-      throw new Error("Không thể tải danh sách phòng.");
+      console.error("❌ Error fetching joined rooms:", error);
+      throw new Error(`Cannot fetch joined rooms: ${(error as Error).message}`);
     }
   }
 }

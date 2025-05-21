@@ -175,13 +175,8 @@ export class PresenceService {
       return;
     }
     if (this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("[WS] WebSocket not open, reconnecting...");
-      this.ws = new WebSocket(
-        `ws://localhost:8080?userId=${this.client.getUserId() || ""}`
-      );
-      await new Promise((resolve) => {
-        this.ws!.onopen = () => resolve(undefined);
-      });
+      console.warn("[WS] WebSocket not open, skip sending presence");
+      return;
     }
 
     const userId = this.client.getUserId() || "";

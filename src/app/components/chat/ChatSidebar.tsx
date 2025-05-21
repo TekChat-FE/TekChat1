@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { useTranslations } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { PresenceService } from '@/app/services/matrix/presenceService';
+import roomService from '@/app/services/matrix/roomService';
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -29,6 +30,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 }) => {
   const t = useTranslations('ChatSidebar');
   const [presenceData, setPresenceData] = useState<Record<string, { presence: string; statusMsg?: string }>>({});
+  const [error, setError] = useState<string | null>(null);
   const presenceService = PresenceService.getInstance();
 
   // Cập nhật trạng thái Presence của thành viên
@@ -66,6 +68,34 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       presenceService.offPresenceEvent(handlePresenceUpdate);
     };
   }, [members, presenceService]);
+
+  const handleInviteMember = async () => {
+    const userId = inviteUserId.trim();
+    if (!userId) {
+      setError(t('errorEmptyUserId'));
+      return;
+    }
+    if (!/^@[\w.-]+:[\w.-]+$/.test(userId)) {
+      setError(t('errorInvalidUserId'));
+      return;
+    }
+    if (members.some(member => member.userId === userId)) {
+      setError(t('errorUserAlreadyInRoom'));
+      return;
+    }
+
+    try {
+      const exists = await roomService.checkUserExists(userId);
+      if (!exists) {
+        setError(t('errorUserNotFound'));
+        return;
+      }
+      setError(null);
+      onInviteMember();
+    } catch (error) {
+      setError(t('errorCheckingUser'));
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -122,12 +152,16 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               <input
                 type="text"
                 value={inviteUserId}
-                onChange={(e) => setInviteUserId(e.target.value)}
+                onChange={(e) => {
+                  setInviteUserId(e.target.value);
+                  setError(null);
+                }}
                 placeholder={t('userIdPlaceholder')}
                 className="w-full rounded-lg border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
               />
+              {error && <div className="text-red-500 text-sm">{error}</div>}
               <button
-                onClick={onInviteMember}
+                onClick={handleInviteMember}
                 className="w-full bg-blue-500 text-white rounded-lg p-3 hover:bg-blue-600 transition"
               >
                 {t('addMemberButton')}
