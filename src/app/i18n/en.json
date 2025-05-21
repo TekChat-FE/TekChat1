@@ -185,6 +185,9 @@
     "create": "Create",
     "close": "Cancel",
     "createSuccess": "Contact created successfully",
-    "createError": "Failed to create contact"
+    "createError": "Failed to create contact",
+    "errorUserNotFound": "User not found!",
+    "cannotCreateContactWithSelf": "Cannot create contact with yourself",
+    "contactAlreadyExists": "You already have a contact with this user"
   }
 }

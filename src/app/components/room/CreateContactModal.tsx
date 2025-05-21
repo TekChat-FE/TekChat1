@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { toast } from 'react-toastify';
+import roomService from '../../services/matrix/roomService';
 
 interface CreateContactModalProps {
   isOpen: boolean;
@@ -32,12 +33,33 @@ const CreateContactModal: React.FC<CreateContactModalProps> = ({
       setError(t('userIdInvalid'));
       return;
     }
+
     try {
+      // Kiểm tra không thể tạo liên hệ với chính mình
+      const currentUserId = localStorage.getItem('userId');
+      if (userId === currentUserId) {
+        setError(t('cannotCreateContactWithSelf'));
+        return;
+      }
+
+      // Kiểm tra người dùng có tồn tại không
+      const exists = await roomService.checkUserExists(userId);
+      if (!exists) {
+        setError(t('errorUserNotFound'));
+        return;
+      }
+
+      // Kiểm tra xem đã có liên hệ với người này chưa
+      const hasExistingContact = await roomService.checkExistingContact(userId);
+      if (hasExistingContact) {
+        setError(t('contactAlreadyExists'));
+        return;
+      }
+
       await onCreate(userId);
       toast.success(t('createSuccess'));
       setUserId('');
       onClose();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
       setError(t('createError'));
       toast.error(t('createError'));

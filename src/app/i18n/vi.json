@@ -183,6 +183,8 @@
     "create": "Tạo",
     "close": "Hủy",
     "createSuccess": "Tạo liên hệ thành công",
-    "createError": "Không thể tạo liên hệ"
+    "createError": "Không thể tạo liên hệ",
+    "cannotCreateContactWithSelf": "Không thể tạo liên hệ với chính mình",
+    "contactAlreadyExists": "Bạn đã có liên hệ với người dùng này"
   }
 }

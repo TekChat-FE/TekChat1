@@ -229,6 +229,35 @@ export class RoomService {
       throw new Error(`Cannot fetch joined rooms: ${(error as Error).message}`);
     }
   }
+
+  async checkExistingContact(userId: string): Promise<boolean> {
+    try {
+      const client = await this.getClient();
+      const currentUserId = client.getUserId();
+      if (!currentUserId) {
+        throw new Error("Current user ID not found.");
+      }
+
+      // Lấy danh sách các phòng trực tiếp
+      const accountData = await client.getAccountDataFromServer("m.direct" as any);
+      if (accountData && typeof accountData === "object") {
+        const dmRooms: Record<string, string[]> = accountData as unknown as Record<string, string[]>;
+        const userRooms = dmRooms[currentUserId] || [];
+        
+        // Kiểm tra xem có phòng nào với người dùng này không
+        for (const roomId of userRooms) {
+          const room = client.getRoom(roomId);
+          if (room && room.getMember(userId)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking existing contact:", error);
+      throw new Error(`Failed to check existing contact: ${(error as Error).message}`);
+    }
+  }
 }
 
 const roomService = new RoomService();
