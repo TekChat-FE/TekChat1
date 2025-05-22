@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from 'next-intl';
 import roomService from "@/app/services/matrix/roomService";
@@ -9,12 +9,13 @@ import authService from "@/app/services/auth/authService";
 import ChatItem from "@/app/components/chat/ChatItem";
 import Footer from "@/app/components/common/Footer";
 import CreateRoomModal from "@/app/components/room/CreateRoomModal";
+import CreateContactModal from "@/app/components/room/CreateContactModal";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { PlusCircle, Key, X } from "lucide-react";
 import { MatrixEvent, Room as MatrixRoom } from "matrix-js-sdk";
 
-// Đổi tên interface Room thành RoomData để tránh xung đột
+// Rename interface Room to RoomData to avoid conflict
 interface RoomData {
   roomId: string;
   name: string;
@@ -23,9 +24,10 @@ interface RoomData {
   ts?: number;
   isGroup?: boolean;
   sender?: string;
+  otherUserId?: string; 
 }
 
-// Hàm sắp xếp phòng theo timestamp
+// Sort rooms by timestamp
 const sortRoomsByTimestamp = (rooms: RoomData[]): RoomData[] => {
   return rooms.sort((a, b) => (b.ts || 0) - (a.ts || 0));
 };
@@ -38,16 +40,19 @@ const RoomList: React.FC = () => {
   const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [isClientReady, setIsClientReady] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+   const [showCreateContactModal, setShowCreateContactModal] = useState(false);
   const router = useRouter();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Kiểm tra trạng thái đăng nhập và đồng bộ client
+  // Check login status and sync client
   useEffect(() => {
     const checkLoginAndSync = async () => {
       try {
         await authService.getAuthenticatedClient();
         setIsClientReady(true);
       } catch (err) {
-        console.error('Lỗi khi kiểm tra đăng nhập hoặc đồng bộ client:', err);
+        console.error('Error checking login or syncing client:', err);
         router.push('/auth/login');
       }
     };
@@ -55,7 +60,7 @@ const RoomList: React.FC = () => {
     checkLoginAndSync();
   }, [router]);
 
-  // Tải danh sách phòng
+  // Load room list
   const loadRooms = useCallback(async () => {
     if (!isClientReady) return;
     setLoading(true);
@@ -63,7 +68,7 @@ const RoomList: React.FC = () => {
       const data = await roomService.fetchJoinedRooms();
       setRooms(sortRoomsByTimestamp(data));
     } catch (error) {
-      console.error("Lỗi khi tải danh sách phòng:", error);
+      console.error("Error loading rooms:", error);
       toast.error(t('createRoomError'), {
         position: 'top-center',
         autoClose: 3000,
@@ -79,13 +84,13 @@ const RoomList: React.FC = () => {
     }
   }, [isClientReady, t]);
 
-  // Cập nhật danh sách phòng với tin nhắn mới
+  // Update room list with new messages
   const updateRoomList = useCallback((updatedRoom: Partial<RoomData>) => {
-    console.log('Cập nhật phòng với tin nhắn mới:', updatedRoom);
+    console.log('Updating room with new message:', updatedRoom);
     setRooms((prevRooms) => {
       const existingRoom = prevRooms.find((r) => r.roomId === updatedRoom.roomId);
       if (existingRoom && existingRoom.ts && updatedRoom.ts && existingRoom.ts >= updatedRoom.ts) {
-        return prevRooms; // Bỏ qua nếu tin nhắn cũ hơn
+        return prevRooms; // Skip if message is older
       }
       const updatedRooms = prevRooms.map((r) =>
         r.roomId === updatedRoom.roomId ? { ...r, ...updatedRoom } : r
@@ -94,7 +99,7 @@ const RoomList: React.FC = () => {
     });
   }, []);
 
-  // Lắng nghe tin nhắn mới
+  // Listen for new messages
   useEffect(() => {
     if (!isClientReady) return;
     loadRooms();
@@ -124,12 +129,26 @@ const RoomList: React.FC = () => {
     };
   }, [isClientReady, loadRooms, updateRoomList]);
 
-  // Lọc phòng theo tìm kiếm
+  // Handle clicks outside dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Filter rooms by search
   const filteredRooms = rooms.filter((room) =>
     room.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Xử lý hiển thị modal access token
+  // Handle access token modal display
   const handleGetAccessToken = () => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
@@ -148,7 +167,7 @@ const RoomList: React.FC = () => {
     }
   };
 
-  // Xử lý sao chép access token
+  // Handle copying access token
   const handleCopyToken = async () => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
@@ -180,40 +199,90 @@ const RoomList: React.FC = () => {
     }
   };
 
-  return (
-    <div className="flex flex-col h-screen bg-gray-100 max-w-md mx-auto">
-      <ToastContainer />
+  // Handle dropdown option selection
+  const handleDropdownSelect = (option: string) => {
+    if (option === 'newGroup') {
+      setShowCreateRoomModal(true);
+    } else if (option === 'newContact') {
+      // Placeholder for New Contact functionality
+      setShowCreateContactModal(true);
+    }
+    setShowDropdown(false);
+  };
 
-      {/* Header */}
-      <header className="p-4 bg-white shadow-md flex items-center justify-between">
+  const handleCreateGroup = async (roomName: string, isGroup: boolean, memberIds: string[]) => {
+    try {
+      const roomId = await roomService.createRoomWithType(roomName, isGroup);
+      for (const userId of memberIds) {
+        try {
+          await chatService.inviteMember(roomId, userId);
+        } catch (inviteErr) {
+          console.error(`Không thể mời ${userId}:`, inviteErr);
+        }
+      }
+      toast.success(
+        t('createRoomSuccess', {
+          type: isGroup ? t('createRoomSuccessTypeGroup') : t('createRoomSuccessTypeContact'),
+        })
+      );
+      loadRooms();
+    } catch (error) {
+      console.error('Error creating room:', error);
+      toast.error(t('createRoomError'));
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900 max-w-md mx-auto">
+      <ToastContainer />
+      <header className="p-4 bg-white dark:bg-gray-800 shadow-md flex items-center justify-between">
         <button className="text-blue-500 text-sm font-medium">{t('edit')}</button>
-        <h1 className="text-lg font-semibold text-gray-800">{t('title')}</h1>
-        <div className="flex items-center gap-4">
+        <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{t('title')}</h1>
+        <div className="flex items-center gap-4 relative">
           <button onClick={handleGetAccessToken} className="text-blue-500">
             <Key className="h-6 w-6" />
           </button>
-          <button onClick={() => setShowCreateRoomModal(true)} className="text-blue-500">
-            <PlusCircle className="h-6 w-6" />
-          </button>
+          <div ref={dropdownRef}>
+            <button
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="text-blue-500"
+            >
+              <PlusCircle className="h-6 w-6" />
+            </button>
+            {showDropdown && (
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-10">
+                <button
+                  onClick={() => handleDropdownSelect('newGroup')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  {t('newGroup')}
+                </button>
+                <button
+                  onClick={() => handleDropdownSelect('newContact')}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  {t('newContact')}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Search */}
-      <div className="p-3 bg-white shadow-sm">
+      <div className="p-3 bg-white dark:bg-gray-800 shadow-sm">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('searchPlaceholder')}
-          className="w-full px-5 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-5 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
         />
       </div>
 
-      {/* Room List */}
       <div className="flex-1 overflow-y-auto pb-24">
         {loading ? (
           <div className="flex justify-center items-center h-full">
-            <p className="text-gray-500">{t('loading')}</p>
+            <p className="text-gray-500 dark:text-gray-400">{t('loading')}</p>
           </div>
         ) : filteredRooms.length > 0 ? (
           filteredRooms.map((room) => (
@@ -221,111 +290,89 @@ const RoomList: React.FC = () => {
               key={room.roomId}
               avatar={undefined}
               name={room.name}
-              sender={room.sender || "Unknown"}
+              sender={room.sender || 'Unknown'}
               lastMessage={room.lastMessage || t('noMessages')}
               timestamp={room.timestamp}
               isGroup={room.isGroup}
+              userId={!room.isGroup ? room.otherUserId : undefined}
               onClick={() => router.push(`/chat/${room.roomId}?isGroup=${room.isGroup}`)}
             />
           ))
         ) : (
           <div className="flex justify-center items-center h-full">
-            <p className="text-gray-500">{t('noRooms')}</p>
+            <p className="text-gray-500 dark:text-gray-400">{t('noRooms')}</p>
           </div>
         )}
       </div>
 
-      {/* Create Room Modal */}
       <CreateRoomModal
         isOpen={showCreateRoomModal}
         onClose={() => setShowCreateRoomModal(false)}
-        onCreate={async (roomName, isGroup) => {
+        onCreate={handleCreateGroup}
+      />
+
+      <CreateContactModal
+        isOpen={showCreateContactModal}
+        onClose={() => setShowCreateContactModal(false)}
+        onCreate={async (userId) => {
           try {
-            await roomService.createRoomWithType(roomName, isGroup);
-            toast.success(
-              t('createRoomSuccess', {
-                type: isGroup ? t('createRoomSuccessTypeGroup') : t('createRoomSuccessTypeContact')
-              }),
-              {
-                position: 'top-center',
-                autoClose: 3000,
-                hideProgressBar: true,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                className: 'text-center text-lg font-semibold',
-              }
-            );
-            loadRooms();
+            const roomId = await roomService.createDirectMessage(userId);
+            toast.success(t('createContactSuccess'));
+            await loadRooms();
+            router.push(`/chat/${roomId}?isGroup=false`);
           } catch (error) {
-            console.error('Lỗi khi tạo phòng:', error);
-            toast.error(t('createRoomError'), {
-              position: 'top-center',
-              autoClose: 3000,
-              hideProgressBar: true,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: true,
-              progress: undefined,
-              className: 'text-center text-lg font-semibold',
-            });
+            console.error('Error creating contact:', error);
+            throw new Error(`Failed to create contact: ${(error as Error).message}`);
           }
         }}
       />
 
-      {/* Token Display Modal */}
       {showTokenModal && (
         <div
           className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50"
           role="dialog"
           aria-labelledby="token-modal-title"
         >
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-            {/* Header */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-md">
             <div className="flex justify-center items-center mb-6 relative">
               <h3
                 id="token-modal-title"
-                className="text-2xl font-bold text-gray-900 tracking-tight"
+                className="text-2xl font-bold text-gray-900 dark:text-gray-100 tracking-tight"
               >
                 {t('accessTokenTitle')}
               </h3>
               <button
                 onClick={() => setShowTokenModal(false)}
-                className="absolute right-0 text-gray-500 hover:text-gray-700 transition-colors"
+                className="absolute right-0 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                 aria-label={t('closeModal')}
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
-
-            {/* Token Display */}
             <div className="space-y-4">
               <div>
                 <label
                   htmlFor="accessTokenDisplay"
-                  className="text-base font-medium text-gray-700 mb-2 flex items-center"
+                  className="text-base font-medium text-gray-700 dark:text-gray-200 mb-2 flex items-center"
                 >
-                  <Key className="h-5 w-5 mr-2 text-gray-400" />
+                  <Key className="h-5 w-5 mr-2 text-gray-400 dark:text-gray-500" />
                   {t('accessTokenLabel')}
                 </label>
                 <input
                   id="accessTokenDisplay"
                   type="text"
-                  value={localStorage.getItem("accessToken") || ""}
+                  value={typeof localStorage !== 'undefined' ? localStorage.getItem('accessToken') || '' : ''}
                   readOnly
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 text-base font-mono select-all focus:outline-none focus:ring-2 focus:ring-gray-300"
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 text-base font-mono select-all focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-gray-500"
                 />
-                <p className="mt-2 text-sm text-gray-500">
+                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                   <span className="font-medium">{t('hint')}:</span> {t('accessTokenHint')}
                 </p>
               </div>
-
-              {/* Buttons */}
               <div className="flex gap-4">
                 <button
                   onClick={handleCopyToken}
-                  className="flex-1 py-3 rounded-lg font-medium text-white bg-gray-800 hover:bg-gray-900 transition-colors duration-200 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 rounded-lg font-medium text-white bg-gray-800 dark:bg-gray-700 hover:bg-gray-900 dark:hover:bg-gray-600 transition-colors duration-200 flex items-center justify-center gap-2"
                   aria-label={t('copyToken')}
                 >
                   <svg
@@ -346,7 +393,7 @@ const RoomList: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setShowTokenModal(false)}
-                  className="flex-1 py-3 rounded-lg font-medium text-gray-700 bg-gray-200 hover:bg-gray-300 transition-colors duration-200"
+                  className="flex-1 py-3 rounded-lg font-medium text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors duration-200"
                   aria-label={t('close')}
                 >
                   {t('close')}
@@ -357,7 +404,6 @@ const RoomList: React.FC = () => {
         </div>
       )}
 
-      {/* Footer */}
       <Footer />
     </div>
   );

@@ -51,76 +51,84 @@ export class PresenceService {
     return PresenceService.instance;
   }
 
+  private async connectWebSocket(userId: string, retryCount = 0): Promise<void> {
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 seconds
+
+    try {
+      this.ws = new WebSocket(`ws://localhost:8080?userId=${userId}`);
+      
+      this.ws.onopen = () => {
+        console.log(`[WS] Connected to WebSocket server for ${userId}`);
+        this.updatePresence("online", "online").catch((err) =>
+          console.error("[ERROR] Failed to set Online status:", err)
+        );
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === "read" && data.userId && data.roomId) {
+            console.log(
+              `[WS] Received read event: ${data.userId} read room ${data.roomId}`
+            );
+            this.readCallbacks.forEach((cb) => cb(data.userId, data.roomId));
+            return;
+          }
+
+          const { userId, presence, statusMsg } = data;
+          this.presenceMap.set(userId, {
+            userId,
+            presence,
+            statusMsg,
+            lastActiveAgo: 0,
+          });
+          console.log(
+            `[WS] Received presence for ${userId}: ${presence}, ${statusMsg}`
+          );
+          this.presenceCallbacks.forEach((cb) =>
+            cb({
+              getSender: () => userId,
+              getContent: () => ({ userId, presence, statusMsg }),
+            })
+          );
+        } catch (error) {
+          console.error("[WS] Error parsing WebSocket message:", error);
+        }
+      };
+
+      this.ws.onerror = (error) => {
+        console.error("[WS] WebSocket error:", error);
+      };
+
+      this.ws.onclose = () => {
+        console.log("[WS] WebSocket connection closed");
+        this.ws = null;
+        
+        if (retryCount < maxRetries) {
+          console.log(`[WS] Attempting to reconnect (${retryCount + 1}/${maxRetries})...`);
+          setTimeout(() => {
+            this.connectWebSocket(userId, retryCount + 1);
+          }, retryDelay);
+        } else {
+          console.error("[WS] Max retry attempts reached. Please ensure presence server is running.");
+        }
+      };
+    } catch (error) {
+      console.error("[WS] Error connecting to WebSocket:", error);
+      if (retryCount < maxRetries) {
+        setTimeout(() => {
+          this.connectWebSocket(userId, retryCount + 1);
+        }, retryDelay);
+      }
+    }
+  }
+
   public async initialize(client: MatrixClient): Promise<void> {
     this.client = client;
-
     const userId = this.client.getUserId() || "";
-    this.ws = new WebSocket(`ws://localhost:8080?userId=${userId}`);
-
-    this.ws.onopen = () => {
-      console.log(`[WS] Connected to WebSocket server for ${userId}`);
-      this.updatePresence("online", "online").catch((err) =>
-        console.error("[ERROR] Failed to set Online status:", err)
-      );
-    };
-
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        if (data.type === "read" && data.userId && data.roomId) {
-          console.log(
-            `[WS] Received read event: ${data.userId} read room ${data.roomId}`
-          );
-          this.readCallbacks.forEach((cb) => cb(data.userId, data.roomId));
-          return;
-        }
-
-        const { userId, presence, statusMsg } = data;
-        this.presenceMap.set(userId, {
-          userId,
-          presence,
-          statusMsg,
-          lastActiveAgo: 0,
-        });
-        console.log(
-          `[WS] Received presence for ${userId}: ${presence}, ${statusMsg}`
-        );
-        this.presenceCallbacks.forEach((cb) =>
-          cb({
-            getSender: () => userId,
-            getContent: () => ({ userId, presence, statusMsg }),
-          })
-        );
-      } catch (error) {
-        console.error("[WS] Error parsing WebSocket message:", error);
-      }
-    };
-
-    this.ws.onerror = (error) => {
-      console.error("[WS] WebSocket error:", error);
-    };
-
-    this.ws.onclose = () => {
-      console.log("[WS] WebSocket connection closed, attempting to reconnect");
-      this.ws = null;
-      setTimeout(() => {
-        if (this.client) {
-          this.ws = new WebSocket(
-            `ws://localhost:8080?userId=${this.client.getUserId() || ""}`
-          );
-          this.ws.onopen = () => {
-            console.log("[WS] Reconnected to WebSocket server");
-            this.updatePresence("online", "online").catch((err) =>
-              console.error(
-                "[ERROR] Failed to set online after reconnect:",
-                err
-              )
-            );
-          };
-        }
-      }, 1000);
-    };
+    await this.connectWebSocket(userId);
 
     this.client.on(ClientEvent.Sync, (state: string) => {
       if (state === "ERROR" || state === "STOPPED") {
@@ -166,22 +174,31 @@ export class PresenceService {
     return data;
   }
 
+  public isConnected(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  public async ensureConnection(): Promise<void> {
+    if (!this.isConnected() && this.client) {
+      const userId = this.client.getUserId() || "";
+      await this.connectWebSocket(userId);
+    }
+  }
+
   public async updatePresence(
     presence: "online" | "offline" | "unavailable",
     statusMsg?: string
   ): Promise<void> {
+    await this.ensureConnection();
+    
     if (!this.ws || !this.client) {
       console.warn("[WS] WebSocket or client not initialized");
       return;
     }
+    
     if (this.ws.readyState !== WebSocket.OPEN) {
-      console.warn("[WS] WebSocket not open, reconnecting...");
-      this.ws = new WebSocket(
-        `ws://localhost:8080?userId=${this.client.getUserId() || ""}`
-      );
-      await new Promise((resolve) => {
-        this.ws!.onopen = () => resolve(undefined);
-      });
+      console.warn("[WS] WebSocket not open, skip sending presence");
+      return;
     }
 
     const userId = this.client.getUserId() || "";

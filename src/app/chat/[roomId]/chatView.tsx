@@ -37,6 +37,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [hasSearched, setHasSearched] = useState(false);
   const [readEventId, setReadEventId] = useState<string | null>(null);
   const [deliveredEventId, setDeliveredEventId] = useState<string | null>(null);
+  const [isGroup, setIsGroup] = useState<boolean>(false);
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -71,6 +72,11 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           setReadEventId(matchedRead.eventId);
         }
       }
+
+      // Lấy isGroup từ roomService
+      const joinedRooms = await roomService.fetchJoinedRooms();
+      const currentRoom = joinedRooms.find(r => r.roomId === roomId);
+      setIsGroup(currentRoom?.isGroup ?? false);
 
       setError(null);
     } catch (err) {
@@ -520,7 +526,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           setInviteUserId={setInviteUserId}
           onInviteMember={handleInviteMember}
           onDeleteRoom={handleDeleteRoom}
-          isGroup={false} // Đặt thành false nếu là contact
+          isGroup={isGroup}
         />
       )}
 
