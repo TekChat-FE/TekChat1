@@ -12,10 +12,11 @@ import CreateRoomModal from "@/app/components/room/CreateRoomModal";
 import CreateContactModal from "@/app/components/room/CreateContactModal";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { PlusCircle, Key, X } from "lucide-react";
+
+import { PlusCircle, Key, X, Mail } from "lucide-react";
 import { MatrixEvent, Room as MatrixRoom } from "matrix-js-sdk";
 
-// Rename interface Room to RoomData to avoid conflict
+// Room data interface
 interface RoomData {
   roomId: string;
   name: string;
@@ -24,10 +25,16 @@ interface RoomData {
   ts?: number;
   isGroup?: boolean;
   sender?: string;
-  otherUserId?: string; 
+  otherUserId?: string;
 }
 
-// Sort rooms by timestamp
+// Invite data interface
+interface InviteData {
+  id: string;
+  roomName: string;
+  inviter: string;
+}
+
 const sortRoomsByTimestamp = (rooms: RoomData[]): RoomData[] => {
   return rooms.sort((a, b) => (b.ts || 0) - (a.ts || 0));
 };
@@ -41,24 +48,111 @@ const RoomList: React.FC = () => {
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [isClientReady, setIsClientReady] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
-   const [showCreateContactModal, setShowCreateContactModal] = useState(false);
+  const [showCreateContactModal, setShowCreateContactModal] = useState(false);
+  const [showInviteDropdown, setShowInviteDropdown] = useState(false);
+  const [invites, setInvites] = useState<InviteData[]>([]);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const inviteDropdownRef = useRef<HTMLDivElement>(null);
 
   // Check login status and sync client
   useEffect(() => {
     const checkLoginAndSync = async () => {
       try {
-        await authService.getAuthenticatedClient();
+        const client = await authService.getAuthenticatedClient();
+        console.log("Sync state:", client.getSyncState && client.getSyncState());
+        if (!client.getSyncState || client.getSyncState() === null || client.getSyncState() === "STOPPED") {
+          client.startClient?.();
+        }
         setIsClientReady(true);
       } catch (err) {
-        console.error('Error checking login or syncing client:', err);
         router.push('/auth/login');
       }
     };
-
     checkLoginAndSync();
   }, [router]);
+
+  // Lấy danh sách lời mời từ client Matrix (giống Element)
+  const fetchInvites = useCallback(async () => {
+    try {
+      const client = await authService.getAuthenticatedClient();
+      const allRooms = client.getRooms();
+      const inviteRooms = allRooms.filter((room: any) => room.getMyMembership && room.getMyMembership() === "invite");
+      // Log chi tiết từng phòng invite
+      console.log("Invite rooms detail:", inviteRooms.map(room => ({
+        roomId: room.roomId,
+        name: room.name,
+        myMembership: room.getMyMembership && room.getMyMembership(),
+        inviter: room.getDMInviter && room.getDMInviter(),
+      })));
+      const invitesData: InviteData[] = inviteRooms.map((room: any) => {
+        let inviter = "";
+        try {
+          // Thử lấy người mời từ sự kiện mời
+          const inviteEvent = room.currentState.getStateEvents('m.room.member', room.myUserId);
+          if (inviteEvent && inviteEvent.getSender()) {
+            inviter = inviteEvent.getSender();
+          } else {
+            // Nếu không có sự kiện mời, thử lấy từ DM inviter
+            inviter = room.getDMInviter ? room.getDMInviter() : "";
+          }
+        } catch (e) {
+          console.error("Error getting inviter:", e);
+          inviter = "";
+        }
+        let roomName = "";
+        try {
+          roomName = room.name || room.roomId;
+        } catch (e) {
+          roomName = room.roomId;
+        }
+        return {
+          id: room.roomId,
+          roomName,
+          inviter,
+        };
+      });
+      console.log("Invites to set:", invitesData);
+      setInvites(invitesData);
+    } catch (error) {
+      setInvites([]);
+    }
+  }, []);
+
+  // Luôn cập nhật lời mời khi client sync hoặc có event Room mới
+  useEffect(() => {
+    if (!isClientReady) return;
+    fetchInvites();
+
+    let client: any = null;
+    let onRoom: any = null;
+    let onSync: any = null;
+
+    (async () => {
+      client = await authService.getAuthenticatedClient();
+
+      // Khi có phòng mới (bao gồm lời mời)
+      onRoom = () => {
+        fetchInvites();
+      };
+      client.on("Room", onRoom);
+
+      // Khi client sync xong (đảm bảo nhận lời mời mới nhất)
+      onSync = (state: string) => {
+        if (state === "PREPARED" || state === "SYNCING") {
+          fetchInvites();
+        }
+      };
+      client.on("sync", onSync);
+    })();
+
+    return () => {
+      if (client) {
+        if (onRoom) client.removeListener("Room", onRoom);
+        if (onSync) client.removeListener("sync", onSync);
+      }
+    };
+  }, [isClientReady, fetchInvites]);
 
   // Load room list
   const loadRooms = useCallback(async () => {
@@ -68,7 +162,6 @@ const RoomList: React.FC = () => {
       const data = await roomService.fetchJoinedRooms();
       setRooms(sortRoomsByTimestamp(data));
     } catch (error) {
-      console.error("Error loading rooms:", error);
       toast.error(t('createRoomError'), {
         position: 'top-center',
         autoClose: 3000,
@@ -84,13 +177,37 @@ const RoomList: React.FC = () => {
     }
   }, [isClientReady, t]);
 
+  // Xác nhận lời mời
+  const handleConfirmInvite = async (inviteId: string) => {
+    try {
+      const client = await authService.getAuthenticatedClient();
+      await client.joinRoom(inviteId);
+      toast.success(t('inviteAccepted'));
+      await fetchInvites();
+      await loadRooms();
+    } catch (err) {
+      toast.error(t('inviteAcceptError'));
+    }
+  };
+
+  // Từ chối lời mời
+  const handleRejectInvite = async (inviteId: string) => {
+    try {
+      const client = await authService.getAuthenticatedClient();
+      await client.leave(inviteId);
+      toast.success(t('inviteRejected'));
+      await fetchInvites();
+    } catch (err) {
+      toast.error(t('inviteRejectError'));
+    }
+  };
+
   // Update room list with new messages
   const updateRoomList = useCallback((updatedRoom: Partial<RoomData>) => {
-    console.log('Updating room with new message:', updatedRoom);
     setRooms((prevRooms) => {
       const existingRoom = prevRooms.find((r) => r.roomId === updatedRoom.roomId);
       if (existingRoom && existingRoom.ts && updatedRoom.ts && existingRoom.ts >= updatedRoom.ts) {
-        return prevRooms; // Skip if message is older
+        return prevRooms;
       }
       const updatedRooms = prevRooms.map((r) =>
         r.roomId === updatedRoom.roomId ? { ...r, ...updatedRoom } : r
@@ -129,11 +246,18 @@ const RoomList: React.FC = () => {
     };
   }, [isClientReady, loadRooms, updateRoomList]);
 
-  // Handle clicks outside dropdown to close it
+  // Handle clicks outside dropdowns to close them
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current && !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowDropdown(false);
+      }
+      if (
+        inviteDropdownRef.current && !inviteDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowInviteDropdown(false);
       }
     };
 
@@ -184,7 +308,6 @@ const RoomList: React.FC = () => {
           className: "text-center text-lg font-semibold",
         });
       } catch (error) {
-        console.error("Failed to copy token:", error);
         toast.error(t('tokenCopyFailed'), {
           position: "top-center",
           autoClose: 3000,
@@ -204,7 +327,6 @@ const RoomList: React.FC = () => {
     if (option === 'newGroup') {
       setShowCreateRoomModal(true);
     } else if (option === 'newContact') {
-      // Placeholder for New Contact functionality
       setShowCreateContactModal(true);
     }
     setShowDropdown(false);
@@ -217,7 +339,7 @@ const RoomList: React.FC = () => {
         try {
           await chatService.inviteMember(roomId, userId);
         } catch (inviteErr) {
-          console.error(`Không thể mời ${userId}:`, inviteErr);
+          // ignore
         }
       }
       toast.success(
@@ -227,16 +349,63 @@ const RoomList: React.FC = () => {
       );
       loadRooms();
     } catch (error) {
-      console.error('Error creating room:', error);
       toast.error(t('createRoomError'));
     }
   };
+
+  // Log để debug UI
+  console.log("invites in render:", invites);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900 max-w-md mx-auto">
       <ToastContainer />
       <header className="p-4 bg-white dark:bg-gray-800 shadow-md flex items-center justify-between">
-        <button className="text-blue-500 text-sm font-medium">{t('edit')}</button>
+        {/* Icon Mail hiển thị thông báo lời mời */}
+        <div className="relative" ref={inviteDropdownRef}>
+          <button
+            className="text-blue-500"
+            onClick={() => setShowInviteDropdown((v) => !v)}
+            aria-label="Invites"
+          >
+            <Mail className="h-6 w-6" />
+            {invites.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1">
+                {invites.length}
+              </span>
+            )}
+          </button>
+          {showInviteDropdown && (
+            <div className="absolute left-0 mt-2 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-20">
+              <div className="p-3">
+                <h4 className="font-semibold mb-2">{t('invitesTitle')}</h4>
+                {invites.length === 0 ? (
+                  <p className="text-gray-500 text-sm">{t('noInvites')}</p>
+                ) : (
+                  invites.map((invite) => (
+                    <div key={invite.id} className="flex flex-col mb-3 border-b pb-2 last:border-b-0">
+                      <span className="font-medium">{invite.roomName}</span>
+                      <span className="text-xs text-gray-500">{t('invitedBy')}: {invite.inviter}</span>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => handleConfirmInvite(invite.id)}
+                          className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold"
+                        >
+                          {t('confirm')}
+                        </button>
+                        <button
+                          onClick={() => handleRejectInvite(invite.id)}
+                          className="px-3 py-1 bg-gray-300 text-gray-700 rounded text-xs font-semibold"
+                        >
+                          {t('reject')}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{t('title')}</h1>
         <div className="flex items-center gap-4 relative">
           <button onClick={handleGetAccessToken} className="text-blue-500">
@@ -321,7 +490,6 @@ const RoomList: React.FC = () => {
             await loadRooms();
             router.push(`/chat/${roomId}?isGroup=false`);
           } catch (error) {
-            console.error('Error creating contact:', error);
             throw new Error(`Failed to create contact: ${(error as Error).message}`);
           }
         }}

@@ -98,7 +98,18 @@
     "close": "Đóng",
     "closeModal": "Đóng modal",
     "newGroup": "Tạo Nhóm Mới",
-    "newContact": "Tạo Liên Hệ Mới"
+    "newContact": "Tạo Liên Hệ Mới",
+    "invitesTitle": "Lời mời",
+    "noInvites": "Không có lời mời nào đang chờ",
+    "invitedBy": "Được mời bởi",
+    "confirm": "Xác nhận",
+    "reject": "Từ chối",
+    "inviteAccepted": "Đã chấp nhận lời mời thành công",
+    "inviteAcceptError": "Không thể chấp nhận lời mời",
+    "inviteRejected": "Đã từ chối lời mời thành công",
+    "inviteRejectError": "Không thể từ chối lời mời",
+    "createContactSuccess": "Đã tạo liên hệ thành công",
+    "copyToken": "Sao chép mã"
   },
   "Footer": {
     "contacts": "Danh bạ",

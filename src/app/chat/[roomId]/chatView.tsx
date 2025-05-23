@@ -75,7 +75,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
 
       // Lấy isGroup từ roomService
       const joinedRooms = await roomService.fetchJoinedRooms();
-      const currentRoom = joinedRooms.find(r => r.roomId === roomId);
+      const currentRoom = joinedRooms.find((r) => r.roomId === roomId);
       setIsGroup(currentRoom?.isGroup ?? false);
 
       setError(null);
@@ -320,7 +320,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                 />
               </svg>
             </button>
-            <h1 className="text-xl font-bold text-gray-900 truncate">
+            <h1 className="text-xl font-bold text-gray-900 truncate max-w-[180px] overflow-hidden whitespace-nowrap">
               {roomName}
             </h1>
           </div>
