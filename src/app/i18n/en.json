@@ -99,7 +99,17 @@
     "closeModal": "Close modal",
     "newGroup": "New Group",
     "newContact": "New Contact",
-    "createContactSuccess": "Contact created successfully"
+    "createContactSuccess": "Contact created successfully",
+    "invitesTitle": "Invites",
+    "noInvites": "No pending invites",
+    "invitedBy": "Invited by",
+    "confirm": "Confirm",
+    "reject": "Reject",
+    "inviteAccepted": "Invite accepted successfully",
+    "inviteAcceptError": "Failed to accept invite",
+    "inviteRejected": "Invite rejected successfully",
+    "inviteRejectError": "Failed to reject invite",
+    "copyToken": "Copy Token"
   },
   "Footer": {
     "contacts": "Contacts",
