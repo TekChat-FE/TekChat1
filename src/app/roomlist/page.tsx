@@ -14,7 +14,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import { PlusCircle, Key, X, Mail } from "lucide-react";
-import { MatrixEvent, Room as MatrixRoom } from "matrix-js-sdk";
+import { MatrixEvent, Room as MatrixRoom, ClientEvent } from "matrix-js-sdk";
 
 // Room data interface
 interface RoomData {
@@ -65,7 +65,7 @@ const RoomList: React.FC = () => {
           client.startClient?.();
         }
         setIsClientReady(true);
-      } catch (err) {
+      } catch {
         router.push('/auth/login');
       }
     };
@@ -77,7 +77,7 @@ const RoomList: React.FC = () => {
     try {
       const client = await authService.getAuthenticatedClient();
       const allRooms = client.getRooms();
-      const inviteRooms = allRooms.filter((room: any) => room.getMyMembership && room.getMyMembership() === "invite");
+      const inviteRooms = allRooms.filter((room: MatrixRoom) => room.getMyMembership && room.getMyMembership() === "invite");
       // Log chi tiết từng phòng invite
       console.log("Invite rooms detail:", inviteRooms.map(room => ({
         roomId: room.roomId,
@@ -85,25 +85,24 @@ const RoomList: React.FC = () => {
         myMembership: room.getMyMembership && room.getMyMembership(),
         inviter: room.getDMInviter && room.getDMInviter(),
       })));
-      const invitesData: InviteData[] = inviteRooms.map((room: any) => {
+      const invitesData: InviteData[] = inviteRooms.map((room: MatrixRoom) => {
         let inviter = "";
         try {
           // Thử lấy người mời từ sự kiện mời
-          const inviteEvent = room.currentState.getStateEvents('m.room.member', room.myUserId);
+          const inviteEvent = room.currentState.getStateEvents('m.room.member', room.myUserId ?? "");
           if (inviteEvent && inviteEvent.getSender()) {
-            inviter = inviteEvent.getSender();
+            inviter = inviteEvent.getSender() ?? "";
           } else {
             // Nếu không có sự kiện mời, thử lấy từ DM inviter
-            inviter = room.getDMInviter ? room.getDMInviter() : "";
+            inviter = room.getDMInviter ? (room.getDMInviter() ?? "") : "";
           }
-        } catch (e) {
-          console.error("Error getting inviter:", e);
+        } catch {
           inviter = "";
         }
         let roomName = "";
         try {
-          roomName = room.name || room.roomId;
-        } catch (e) {
+          roomName = room.name ? room.name : (room.roomId ?? "");
+        } catch {
           roomName = room.roomId;
         }
         return {
@@ -114,7 +113,7 @@ const RoomList: React.FC = () => {
       });
       console.log("Invites to set:", invitesData);
       setInvites(invitesData);
-    } catch (error) {
+    } catch {
       setInvites([]);
     }
   }, []);
@@ -124,9 +123,9 @@ const RoomList: React.FC = () => {
     if (!isClientReady) return;
     fetchInvites();
 
-    let client: any = null;
-    let onRoom: any = null;
-    let onSync: any = null;
+    let client: import("matrix-js-sdk").MatrixClient | null = null;
+    let onRoom: (() => void) | null = null;
+    let onSync: ((state: string) => void) | null = null;
 
     (async () => {
       client = await authService.getAuthenticatedClient();
@@ -135,7 +134,7 @@ const RoomList: React.FC = () => {
       onRoom = () => {
         fetchInvites();
       };
-      client.on("Room", onRoom);
+      client.on(ClientEvent.Room, onRoom);
 
       // Khi client sync xong (đảm bảo nhận lời mời mới nhất)
       onSync = (state: string) => {
@@ -143,13 +142,17 @@ const RoomList: React.FC = () => {
           fetchInvites();
         }
       };
-      client.on("sync", onSync);
+      client.on(ClientEvent.Sync, onSync);
     })();
 
     return () => {
       if (client) {
-        if (onRoom) client.removeListener("Room", onRoom);
-        if (onSync) client.removeListener("sync", onSync);
+        if (onRoom && typeof client.removeListener === 'function') {
+          client.removeListener(ClientEvent.Room, onRoom);
+        }
+        if (onSync && typeof client.removeListener === 'function') {
+          client.removeListener(ClientEvent.Sync, onSync);
+        }
       }
     };
   }, [isClientReady, fetchInvites]);
@@ -161,7 +164,7 @@ const RoomList: React.FC = () => {
     try {
       const data = await roomService.fetchJoinedRooms();
       setRooms(sortRoomsByTimestamp(data));
-    } catch (error) {
+    } catch {
       toast.error(t('createRoomError'), {
         position: 'top-center',
         autoClose: 3000,
@@ -185,7 +188,7 @@ const RoomList: React.FC = () => {
       toast.success(t('inviteAccepted'));
       await fetchInvites();
       await loadRooms();
-    } catch (err) {
+    } catch {
       toast.error(t('inviteAcceptError'));
     }
   };
@@ -197,7 +200,7 @@ const RoomList: React.FC = () => {
       await client.leave(inviteId);
       toast.success(t('inviteRejected'));
       await fetchInvites();
-    } catch (err) {
+    } catch {
       toast.error(t('inviteRejectError'));
     }
   };
@@ -307,7 +310,7 @@ const RoomList: React.FC = () => {
           progress: undefined,
           className: "text-center text-lg font-semibold",
         });
-      } catch (error) {
+      } catch {
         toast.error(t('tokenCopyFailed'), {
           position: "top-center",
           autoClose: 3000,
@@ -338,7 +341,7 @@ const RoomList: React.FC = () => {
       for (const userId of memberIds) {
         try {
           await chatService.inviteMember(roomId, userId);
-        } catch (inviteErr) {
+        } catch {
           // ignore
         }
       }
@@ -348,7 +351,7 @@ const RoomList: React.FC = () => {
         })
       );
       loadRooms();
-    } catch (error) {
+    } catch {
       toast.error(t('createRoomError'));
     }
   };
