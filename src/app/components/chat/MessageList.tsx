@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useRef } from "react";
 import { format } from "date-fns";
-import { useTranslations } from "next-intl";
 
 interface MessageListProps {
   messages: Array<{
@@ -35,7 +34,6 @@ const MessageList: React.FC<MessageListProps> = ({
   readEventId,
   getDisplayName,
 }) => {
-  const t = useTranslations("MessageList");
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -122,37 +120,37 @@ const MessageList: React.FC<MessageListProps> = ({
                       {displayName}
                     </p>
                     <p>{message.body}</p>
-                    <div className="mt-1 text-xs text-gray-500 text-right">
-                      {formattedTime}
+                    <div className="flex items-center gap-1 justify-end mt-2">
+                      <span className="text-[11px] text-gray-500 select-none">{formattedTime}</span>
+                      {isCurrentUser &&
+                        message.eventId === lastOwnMessage?.eventId &&
+                        !repliedByB && (
+                          <span
+                            className="text-[13px] select-none"
+                            style={{
+                              color:
+                                message.status === "error"
+                                  ? "#e53935"
+                                  : message.eventId === readEventId
+                                  ? "#0088cc"
+                                  : message.eventId === deliveredEventId
+                                  ? "#a0a0a0"
+                                  : "#a0a0a0",
+                            }}
+                          >
+                            {message.status === "sending"
+                              ? "⏳"
+                              : message.status === "error"
+                              ? "⚠️"
+                              : message.eventId === readEventId
+                              ? "✓✓"
+                              : message.eventId === deliveredEventId
+                              ? "✓✓"
+                              : "✓"}
+                          </span>
+                        )}
                     </div>
                   </div>
-
-                  {isCurrentUser &&
-                    message.eventId === lastOwnMessage?.eventId &&
-                    !repliedByB && (
-                      <div className="absolute -bottom-4 right-1 text-xs flex items-center gap-1 text-gray-800">
-                        {message.status === "sending" ? (
-                          <span className="animate-pulse text-gray-400">
-                            ⏳
-                          </span>
-                        ) : message.eventId === readEventId ? (
-                          <span className="text-blue-600">✓✓</span>
-                        ) : message.eventId === deliveredEventId ? (
-                          <span className="text-gray-500">✓✓</span>
-                        ) : (
-                          <span className="text-gray-400">✓</span>
-                        )}
-                        <span className="italic font-medium text-[11px]">
-                          {message.status === "sending"
-                            ? t("sending")
-                            : message.eventId === readEventId
-                            ? t("read")
-                            : message.eventId === deliveredEventId
-                            ? t("delivered")
-                            : t("sent")}
-                        </span>
-                      </div>
-                    )}
                 </div>
               </div>
             </div>

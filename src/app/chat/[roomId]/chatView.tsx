@@ -300,14 +300,14 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
       <div className="flex flex-col w-full max-w-md h-full bg-white shadow-lg">
         {/* Nội dung khung chat */}
-        <header className="bg-white shadow-md p-4 flex items-center justify-between">
+        <header className="bg-white shadow-[0_2px_8px_0_rgba(0,0,0,0.04)] p-4 flex items-center justify-between border-b border-gray-100">
           <div className="flex items-center">
             <button
               onClick={() => router.back()}
-              className="text-gray-600 hover:text-gray-800 mr-3"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-blue-100 transition mr-3 shadow-sm"
             >
               <svg
-                className="w-6 h-6"
+                className="w-6 h-6 text-[#0088cc]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -320,11 +320,11 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                 />
               </svg>
             </button>
-            <h1 className="text-xl font-bold text-gray-900 truncate max-w-[180px] overflow-hidden whitespace-nowrap">
+            <h1 className="text-2xl font-bold text-gray-900 text-center truncate max-w-[180px] overflow-hidden whitespace-nowrap">
               {roomName}
             </h1>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => {
                 const newState = !isSearchOpen;
@@ -335,11 +335,11 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                   setHasSearched(false);
                 }
               }}
-              className="text-gray-600 hover:text-gray-800"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-blue-100 transition"
               title="Tìm kiếm"
             >
               <svg
-                className="w-6 h-6"
+                className="w-6 h-6 text-[#0088cc]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -352,14 +352,13 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                 />
               </svg>
             </button>
-
             <button
               onClick={handleStartVoiceCall}
-              className="text-gray-600 hover:text-green-800"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-blue-100 transition"
               title="Cuộc gọi thoại"
             >
               <svg
-                className="w-6 h-6"
+                className="w-6 h-6 text-[#0088cc]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -374,11 +373,11 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
             </button>
             <button
               onClick={handleStartVideoCall}
-              className="text-gray-600 hover:text-green-800"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-blue-100 transition"
               title="Cuộc gọi video"
             >
               <svg
-                className="w-6 h-6"
+                className="w-6 h-6 text-[#0088cc]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -393,10 +392,10 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
             </button>
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="text-gray-600 hover:text-gray-800"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-blue-100 transition"
             >
               <svg
-                className="w-6 h-6"
+                className="w-6 h-6 text-[#0088cc]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -491,15 +490,20 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder="Nhập tin nhắn..."
-                className="flex-1 rounded-full border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+                placeholder="Type a message..."
+                className="flex-1 rounded-full border border-gray-200 p-4 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition bg-white text-gray-800 placeholder-gray-400"
+                style={{ fontSize: '1rem' }}
               />
               <button
                 onClick={handleSendMessage}
-                className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition"
+                disabled={!messageText.trim()}
+                className={`rounded-full p-3 shadow-lg flex items-center justify-center transition-colors duration-200
+                  ${messageText.trim() ? 'bg-[#0088cc] hover:bg-blue-600 text-white cursor-pointer' : 'bg-gray-200 text-gray-400 cursor-default'}
+                `}
+                style={{ boxShadow: '0 2px 8px 0 rgba(0,0,0,0.10)' }}
               >
                 <svg
-                  className="w-5 h-5"
+                  className={`w-5 h-5 transition-transform duration-200 ml-[2px] ${messageText.trim() ? '-rotate-0' : 'rotate-90'}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
