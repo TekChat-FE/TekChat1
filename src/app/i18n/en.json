@@ -68,7 +68,7 @@
     "logoutSuccess": "Logged out successfully!",
     "logoutFailed": "Failed to log out. Please try again.",
     "validation": {
-      "invalidHomeserver": "Invalid Homeserver URL. Example: https://matrix.org",
+      "invalidHomeserver": "Invalid Homeserver URL. Example: https://matrix.teknix.dev",
       "emptyAccessToken": "Access Token cannot be empty.",
       "invalidAccessToken": "Invalid Access Token format.",
       "invalidUsername": "Invalid username (@username:homeserver).",
