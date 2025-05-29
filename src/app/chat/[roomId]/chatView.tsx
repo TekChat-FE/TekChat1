@@ -15,6 +15,7 @@ import VideoCallUI from "@/app/components/call/VideoCallUI";
 import SearchList from "@/app/components/chat/SearchList";
 import { PresenceService } from "@/app/services/matrix/presenceService";
 import authService from "@/app/services/auth/authService";
+import { SetPresence } from "matrix-js-sdk";
 
 interface ChatViewProps {
   matrixClient: MatrixClient;
@@ -104,16 +105,15 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       if (isOwnMessage) return;
 
       // Gửi "delivered" nếu là tin của người khác
-      PresenceService.getInstance().ws?.send(
-        JSON.stringify({ type: "delivered", roomId })
+      PresenceService.getInstance().updatePresence(
+        SetPresence.Online,
+        `delivered:${roomId}`
       );
 
       setMessages((prev) => {
-        // Nếu eventId đã có thì bỏ qua (tránh lặp)
         if (prev.some((m) => m.eventId === newMessage.eventId)) {
           return prev;
         }
-        // Thêm tin nhắn mới
         return [...prev, newMessage];
       });
     },
@@ -156,38 +156,10 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   }, [handleNewMessage]);
 
   useEffect(() => {
-    const currentUserId = matrixClient.getUserId();
-    const recipient = members.find((m) => m.userId !== currentUserId);
-    if (!recipient) return;
-
-    const presence = PresenceService.getInstance();
-
-    const handlePresence = () => {
-      const userPresence = presence.getPresence(recipient.userId);
-      if (userPresence.presence === "online") {
-        const lastOwnMessage = messages
-          .filter((m) => m.sender === currentUserId)
-          .at(-1);
-        if (lastOwnMessage) {
-          setDeliveredEventId(lastOwnMessage.eventId);
-        }
-      }
-    };
-
-    presence.onPresenceEvent(handlePresence);
-    handlePresence();
-
-    return () => presence.offPresenceEvent(handlePresence);
-  }, [members, messages, matrixClient]);
-
-  // Gửi định kỳ READ mỗi 1s nếu vẫn ở trong phòng
-  useEffect(() => {
     const interval = setInterval(() => {
-      PresenceService.getInstance().ws?.send(
-        JSON.stringify({
-          type: "read",
-          roomId,
-        })
+      PresenceService.getInstance().updatePresence(
+        SetPresence.Online,
+        `read:${roomId}`
       );
     }, 1000);
 
@@ -197,18 +169,38 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   useEffect(() => {
     const currentUserId = matrixClient.getUserId();
 
-    const handleRead = (userId: string, rId: string) => {
-      if (rId !== roomId || userId === currentUserId) return;
+    const handlePresence = (event: MatrixEvent) => {
+      if (event.getType() !== "m.presence") return;
+      
+      const userId = event.getSender()!;
+      const content = event.getContent();
+      
+      // Xử lý read status
+      if (content.presence === "online" && content.statusMsg?.startsWith("read:")) {
+        const [_, readRoomId] = content.statusMsg.split(":");
+        if (readRoomId === roomId) {
+          const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
+          if (lastMsg) {
+            setReadEventId(lastMsg.eventId);
+          }
+        }
+      }
 
-      const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
-      if (lastMsg) {
-        setReadEventId(lastMsg.eventId);
+      // Xử lý delivered status
+      if (content.presence === "online" && content.statusMsg?.startsWith("delivered:")) {
+        const [_, deliveredRoomId] = content.statusMsg.split(":");
+        if (deliveredRoomId === roomId) {
+          const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
+          if (lastMsg) {
+            setDeliveredEventId(lastMsg.eventId);
+          }
+        }
       }
     };
 
     const presence = PresenceService.getInstance();
-    presence.onRead(handleRead);
-    return () => presence.offRead(handleRead);
+    presence.onPresenceEvent(handlePresence);
+    return () => presence.offPresenceEvent(handlePresence);
   }, [roomId, messages, matrixClient]);
 
   useEffect(() => {
