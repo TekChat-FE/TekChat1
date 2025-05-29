@@ -14,6 +14,7 @@ import VoiceCallUI from "@/app/components/call/VoiceCallUI";
 import VideoCallUI from "@/app/components/call/VideoCallUI";
 import SearchList from "@/app/components/chat/SearchList";
 import { PresenceService } from "@/app/services/matrix/presenceService";
+import authService from "@/app/services/auth/authService";
 
 interface ChatViewProps {
   matrixClient: MatrixClient;
@@ -38,6 +39,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [readEventId, setReadEventId] = useState<string | null>(null);
   const [deliveredEventId, setDeliveredEventId] = useState<string | null>(null);
   const [isGroup, setIsGroup] = useState<boolean>(false);
+  const [isClientReady, setIsClientReady] = useState(false);
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -118,10 +120,28 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     [roomId, matrixClient]
   );
 
+  
   useEffect(() => {
+    const checkClientReady = async () => {
+      try {
+        const client = await authService.getAuthenticatedClient();
+        if (!client.getSyncState || client.getSyncState() === null || client.getSyncState() === "STOPPED") {
+          await client.startClient();
+        }
+        setIsClientReady(true);
+      } catch (err) {
+        console.error("Client not ready:", err);
+        router.push('/auth/login');
+      }
+    };
+    checkClientReady();
+  }, [router]);
+
+  useEffect(() => {
+    if (!isClientReady) return;
     setLoading(true);
     fetchRoomData().finally(() => setLoading(false));
-  }, [fetchRoomData]);
+  }, [isClientReady, fetchRoomData]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -288,6 +308,14 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const handleStartVideoCall = () => {
     startCall(roomId, "video");
   };
+
+  if (!isClientReady) {
+    return (
+      <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   const currentUserId = matrixClient.getUserId();
   if (!currentUserId) {

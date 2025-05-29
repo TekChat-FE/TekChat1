@@ -68,7 +68,7 @@
     "logoutSuccess": "Đăng xuất thành công!",
     "logoutFailed": "Đăng xuất thất bại. Vui lòng thử lại.",
     "validation": {
-      "invalidHomeserver": "URL Homeserver không hợp lệ. Ví dụ: https://matrix.org",
+      "invalidHomeserver": "URL Homeserver không hợp lệ. Ví dụ: https://matrix.teknix.dev",
       "emptyAccessToken": "Mã truy cập không được để trống.",
       "invalidAccessToken": "Định dạng mã truy cập không hợp lệ.",
       "invalidUsername": "Tên người dùng không hợp lệ (@username:homeserver).",

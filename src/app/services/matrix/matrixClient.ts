@@ -65,112 +65,53 @@ export class MatrixClientManager {
    * @param userId The user ID.
    * @returns The initialized Matrix client.
    */
-  static async initialize(accessToken: string, userId: string): Promise<MatrixClient> {
+  public static async initialize(accessToken: string, userId: string): Promise<MatrixClient> {
     if (typeof window === "undefined") {
       throw new Error("Matrix client initialization is not supported on server-side.");
     }
 
     if (this.client && this.client.getSyncState() !== null) {
-      console.log(`Return initialized client: ${userId}, state: ${this.client.getSyncState()}`); // eslint-disable-line no-console
       return this.client;
     }
 
-    if (this.isInitializing) {
-      console.log(`Initializing client for ${userId}, waiting for completion...`); // eslint-disable-line no-console
-      await this.syncPromise;
-      if (this.client) return this.client;
-      throw new Error("Client initialization failed.");
+    const baseUrl = localStorage.getItem("matrix_homeserver") || MATRIX_CONFIG.BASE_URL;
+    if (!baseUrl) {
+      throw new Error("Homeserver URL not found in localStorage or config.");
     }
-
-    this.isInitializing = true;
-    this.syncPromise = new Promise(async (resolve, reject) => {
-      try {
-        // Get baseUrl from localStorage or fallback to config
-        const baseUrl = localStorage.getItem("matrix_homeserver") || MATRIX_CONFIG.BASE_URL;
-        if (!baseUrl) {
-          throw new Error("Homeserver URL not found in localStorage or config.");
-        }
-
-        // Validate baseUrl
-        try {
-          new URL(baseUrl);
-        } catch {
-          throw new Error("Invalid homeserver URL: " + baseUrl);
-        }
-
-        // Load matrix-js-sdk
-        await this.loadMatrixSdk();
-
-        // Validate access token
-        await this.validateToken(baseUrl, accessToken).catch((error) => {
-          console.error(`Lỗi xác thực token cho ${userId}:`, error);
-          reject(error);
-        });
-
-        let deviceId = sessionStorage.getItem(`deviceId_${userId}`);
-        if (!deviceId) {
-          deviceId = this.generateDeviceId(userId);
-          sessionStorage.setItem(`deviceId_${userId}`, deviceId);
-        }
-
-        console.log(`Initializing MatrixClient for user ${userId} with deviceId: ${deviceId}, baseUrl: ${baseUrl}`); // eslint-disable-line no-console
-
-        this.client = createClient({
-          baseUrl,
-          accessToken,
-          userId,
-          deviceId,
-        });
-
-        // Initialize PresenceService if available
-        if (PresenceService) {
-          const presenceService = PresenceService.getInstance();
-          presenceService.initialize(this.client).then(() => {
-            presenceService.updatePresence('online', 'online').catch((err) =>
-              console.error('[ERROR] Failed to set online status after initialization:', err)
-            );
-          });
-        }
-
-        this.client.on(ClientEvent.Sync, (state: SyncState, prevState: SyncState | null) => {
-          console.log(`Sync state for ${userId} (deviceId: ${deviceId}): ${state} (previous: ${prevState})`); // eslint-disable-line no-console
-          if (state === "PREPARED" || state === "SYNCING") {
-            console.log(`✅ MatrixClient is ready for ${userId}!`); // eslint-disable-line no-console
-            resolve();
-          } else if (state === "ERROR") {
-            console.error(`❌ Sync error for ${userId}!`); // eslint-disable-line no-console
-            reject(new Error("Sync error."));
-          }
-        });
-
-        this.client.startClient({ initialSyncLimit: 10 }).catch((error: any) => {
-          console.error(`Error starting client for ${userId}:`, error);
-          reject(new Error(`Cannot start client: ${error.message}`));
-        });
-      } catch (error: any) {
-        console.error(`Error initializing client for ${userId}:`, error);
-        reject(error);
-      }
-    });
 
     try {
-      await this.syncPromise;
-      this.isInitializing = false;
-      this.syncPromise = null;
-      if (!this.client) throw new Error("Client not initialized.");
-      return this.client;
-    } catch (error: any) {
-      this.isInitializing = false;
-      this.syncPromise = null;
-      this.client = null;
-      // Clear localStorage on token-related errors
-      if (error.message.includes("Invalid access token") || error.message.includes("Token validation failed")) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("userId");
-        localStorage.removeItem("matrix_homeserver");
-      }
-      throw error;
+      new URL(baseUrl);
+    } catch {
+      throw new Error("Invalid homeserver URL: " + baseUrl);
     }
+
+    await this.loadMatrixSdk();
+
+    let deviceId = sessionStorage.getItem(`deviceId_${userId}`);
+    if (!deviceId) {
+      deviceId = this.generateDeviceId(userId);
+      sessionStorage.setItem(`deviceId_${userId}`, deviceId);
+    }
+
+    this.client = createClient({
+      baseUrl,
+      accessToken,
+      userId,
+      deviceId,
+    });
+
+    // Initialize PresenceService if available
+    if (PresenceService) {
+      const presenceService = PresenceService.getInstance();
+      presenceService.initialize(this.client).then(() => {
+        presenceService.updatePresence('online', 'online').catch((err) =>
+          console.error('[ERROR] Failed to set online status after initialization:', err)
+        );
+      });
+    }
+
+    await this.client.startClient({ initialSyncLimit: 10 });
+    return this.client;
   }
 
   /**

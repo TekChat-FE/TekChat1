@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [accessToken, setAccessToken] = useState('');
-  const [homeserver, setHomeserver] = useState('https://matrix.org');
+  const [homeserver, setHomeserver] = useState('https://matrix.teknix.dev');
   const [useAccessToken, setUseAccessToken] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,9 +92,8 @@ export default function LoginPage() {
       const tokenRegex = /^[A-Za-z0-9-_=]+$/;
       if (!tokenRegex.test(accessToken)) return t('validation.invalidAccessToken');
     } else {
-      const usernameRegex = /^@[\w.-]+:[\w.-]+$/;
+      const usernameRegex = /^@[\w.-]+:[\w.-]+\.[\w.-]+$/;
       if (!usernameRegex.test(username)) return t('validation.invalidUsername');
-      if (password.length < 8) return t('validation.shortPassword');
     }
     return null;
   };
