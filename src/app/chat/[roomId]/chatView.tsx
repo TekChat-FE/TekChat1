@@ -1,6 +1,6 @@
 // src/app/chat/[roomId]/chatView.tsx
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { MatrixClient, MatrixEvent, Room, RoomMember } from "matrix-js-sdk";
 import chatService, { ChatMessage } from "@/app/services/matrix/chatService";
@@ -27,6 +27,8 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const { state, startCall } = useCall();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageText, setMessageText] = useState("");
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [roomName, setRoomName] = useState<string>("");
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [inviteUserId, setInviteUserId] = useState("");
@@ -41,6 +43,8 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [deliveredEventId, setDeliveredEventId] = useState<string | null>(null);
   const [isGroup, setIsGroup] = useState<boolean>(false);
   const [isClientReady, setIsClientReady] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -301,6 +305,62 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     startCall(roomId, "video");
   };
 
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedImage(file);
+    }
+  };
+
+  const handleSendImage = async () => {
+    if (!selectedImage) return;
+
+    setIsUploading(true);
+    const currentUserId = matrixClient.getUserId();
+    const tempEventId = `temp-${Date.now()}`;
+
+    try {
+      // Tạo tin nhắn tạm thời
+      const tempMessage: ChatMessage = {
+        sender: currentUserId || "Bạn",
+        body: "Đang tải ảnh...",
+        eventId: tempEventId,
+        tempId: tempEventId,
+        avatarUrl: undefined,
+        timestamp: Date.now(),
+        status: "sending",
+        isImage: true,
+        imageUrl: URL.createObjectURL(selectedImage)
+      };
+      setMessages(prev => [...prev, tempMessage]);
+
+      // Gửi ảnh lên server
+      const eventId = await chatService.sendImage(roomId, selectedImage, tempEventId);
+      
+      // Cập nhật tin nhắn với eventId thật
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.eventId === tempEventId 
+            ? { ...msg, eventId, status: "sent" }
+            : msg
+        )
+      );
+    } catch (error) {
+      console.error("Lỗi khi gửi ảnh:", error);
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.eventId === tempEventId 
+            ? { ...msg, body: "Lỗi khi gửi ảnh", status: "error" }
+            : msg
+        )
+      );
+    } finally {
+      setSelectedImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setIsUploading(false);
+    }
+  };
+
   if (!isClientReady) {
     return (
       <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
@@ -498,6 +558,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               currentUserId={currentUserId}
               deliveredEventId={deliveredEventId}
               readEventId={readEventId}
+              setPreviewImage={setPreviewImage}
             />
           </>
         )}
@@ -505,21 +566,34 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
         {/* Footer - Only render when there is no active call */}
         {!state.activeCall && (
           <footer className="bg-white p-4 shadow-inner">
+            {selectedImage && (
+              <div className="mb-2 relative">
+                <img
+                  src={URL.createObjectURL(selectedImage)}
+                  alt="Selected"
+                  className="max-h-32 rounded-lg"
+                />
+                <button
+                  onClick={() => setSelectedImage(null)}
+                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
             <div className="flex items-center space-x-3">
-              <input
-                type="text"
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder="Nhập tin nhắn..."
-                className="flex-1 rounded-full border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-              />
-              <button
-                onClick={handleSendMessage}
-                className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition"
-              >
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                  ref={fileInputRef}
+                />
                 <svg
-                  className="w-5 h-5"
+                  className="w-6 h-6 text-gray-600 hover:text-gray-800"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -528,10 +602,62 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="2"
-                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
                 </svg>
-              </button>
+              </label>
+              <input
+                type="text"
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                placeholder="Nhập tin nhắn..."
+                className="flex-1 rounded-full border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+              />
+              {selectedImage ? (
+                <button
+                  onClick={handleSendImage}
+                  disabled={isUploading}
+                  className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition disabled:opacity-50"
+                >
+                  {isUploading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                  ) : (
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                      />
+                    </svg>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleSendMessage}
+                  className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                    />
+                  </svg>
+                </button>
+              )}
             </div>
           </footer>
         )}
@@ -554,6 +680,20 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
         incomingCall={state.incomingCall}
         callerName={state.callerName}
       />
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+          onClick={() => setPreviewImage(null)}
+        >
+          <img
+            src={previewImage}
+            alt="Preview"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-lg"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -10,12 +10,14 @@ interface MessageListProps {
     eventId: string;
     avatarUrl?: string | null | undefined;
     timestamp: number;
-  status?: "sending" | "sent" | "delivered" | "read" | "error";
+    isImage?: boolean;
+    imageUrl?: string;
   }>;
   currentUserId: string;
   deliveredEventId?: string | null;
   readEventId?: string | null;
   getDisplayName?: (userId: string) => string;
+  setPreviewImage?: (url: string) => void;
 }
 
 const isSameDay = (timestamp1: number, timestamp2: number) => {
@@ -34,6 +36,7 @@ const MessageList: React.FC<MessageListProps> = ({
   deliveredEventId,
   readEventId,
   getDisplayName,
+  setPreviewImage,
 }) => {
   const t = useTranslations("MessageList");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -121,7 +124,19 @@ const MessageList: React.FC<MessageListProps> = ({
                     <p className="text-xs font-semibold text-gray-600 mb-1">
                       {displayName}
                     </p>
-                    <p>{message.body}</p>
+                    {message.isImage ? (
+                      <div className="relative">
+                        <img
+                          src={message.imageUrl}
+                          alt="Shared image"
+                          className="max-w-full rounded-lg cursor-pointer"
+                          style={{ maxHeight: "300px" }}
+                          onClick={() => setPreviewImage && setPreviewImage(message.imageUrl!)}
+                        />
+                      </div>
+                    ) : (
+                      <p>{message.body}</p>
+                    )}
                     <div className="mt-1 text-xs text-gray-500 text-right">
                       {formattedTime}
                     </div>
@@ -131,11 +146,7 @@ const MessageList: React.FC<MessageListProps> = ({
                     message.eventId === lastOwnMessage?.eventId &&
                     !repliedByB && (
                       <div className="absolute -bottom-4 right-1 text-xs flex items-center gap-1 text-gray-800">
-                        {message.status === "sending" ? (
-                          <span className="animate-pulse text-gray-400">
-                            ⏳
-                          </span>
-                        ) : message.eventId === readEventId ? (
+                        {message.eventId === readEventId ? (
                           <span className="text-blue-600">✓✓</span>
                         ) : message.eventId === deliveredEventId ? (
                           <span className="text-gray-500">✓✓</span>
@@ -143,9 +154,7 @@ const MessageList: React.FC<MessageListProps> = ({
                           <span className="text-gray-400">✓</span>
                         )}
                         <span className="italic font-medium text-[11px]">
-                          {message.status === "sending"
-                            ? t("sending")
-                            : message.eventId === readEventId
+                          {message.eventId === readEventId
                             ? t("read")
                             : message.eventId === deliveredEventId
                             ? t("delivered")

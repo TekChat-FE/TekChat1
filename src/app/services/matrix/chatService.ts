@@ -23,6 +23,8 @@ export interface ChatMessage {
   timestamp: number;
   tempId?: string;
   status?: "sending" | "sent" | "delivered" | "read" | "error";
+  isImage?: boolean;
+  imageUrl?: string;
 }
 
 export class ChatService {
@@ -148,9 +150,25 @@ export class ChatService {
             );
           }
 
+          const content = event.getContent();
+          if (content.msgtype === "m.image" && content.url) {
+            return {
+              sender: senderId || "",
+              body: content.body || "",
+              eventId: event.getId() || `msg-${Date.now()}`,
+              avatarUrl: avatarUrl,
+              timestamp:
+                typeof timestamp === "number" && !isNaN(timestamp)
+                  ? timestamp
+                  : Date.now(),
+              isImage: true,
+              imageUrl: client.mxcUrlToHttp(content.url) || undefined,
+            };
+          }
+
           return {
             sender: senderId || "",
-            body: event.getContent()?.body || "",
+            body: content.body || "",
             eventId: event.getId() || `msg-${Date.now()}`,
             avatarUrl: avatarUrl,
             timestamp:
@@ -315,26 +333,49 @@ export class ChatService {
     }
 
     const timestamp = event.getTs();
-    if (typeof timestamp !== "number" || isNaN(timestamp)) {
-      console.warn(
-        `Timestamp không hợp lệ cho sự kiện ${event.getId()}:`,
-        timestamp
-      );
-    }
-
     const eventId = event.getId();
-    if (!eventId) return null; // ✅ Bỏ qua nếu chưa có eventId (đề phòng Matrix chưa sync xong)
+    if (!eventId) return null;
+
+    const content = event.getContent();
+    if (content.msgtype === "m.image" && content.url) {
+      return {
+        sender: senderId,
+        body: content.body || "",
+        eventId,
+        avatarUrl,
+        timestamp: typeof timestamp === "number" && !isNaN(timestamp) ? timestamp : Date.now(),
+        isImage: true,
+        imageUrl: client.mxcUrlToHttp(content.url) || undefined,
+      };
+    }
 
     return {
       sender: senderId,
-      body: event.getContent()?.body || "",
-      eventId, // ✅ Dùng đúng eventId
+      body: content.body || "",
+      eventId,
       avatarUrl,
-      timestamp:
-        typeof timestamp === "number" && !isNaN(timestamp)
-          ? timestamp
-          : Date.now(),
+      timestamp: typeof timestamp === "number" && !isNaN(timestamp) ? timestamp : Date.now(),
     };
+  }
+
+  async sendImage(roomId: string, imageFile: File, tempEventId: string): Promise<string> {
+    try {
+      const client = await this.getClient();
+      const upload = await client.uploadContent(imageFile);
+      const response = await client.sendMessage(roomId, {
+        msgtype: MsgType.Image,
+        body: imageFile.name,
+        url: upload.content_uri,
+        info: {
+          mimetype: imageFile.type,
+          size: imageFile.size,
+        },
+      });
+      return response.event_id;
+    } catch (error) {
+      console.error("Error sending image:", error);
+      throw error;
+    }
   }
 }
 
