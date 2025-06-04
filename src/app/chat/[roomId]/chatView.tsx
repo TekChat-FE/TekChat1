@@ -23,6 +23,7 @@ interface ChatViewProps {
 }
 
 const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
+  // All hooks and variables must be declared here, before any return
   const router = useRouter();
   const { state, startCall } = useCall();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -45,6 +46,8 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [isClientReady, setIsClientReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const currentUserId = matrixClient.getUserId();
+  const [scrollToEventId, setScrollToEventId] = useState<string | null>(null);
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -59,7 +62,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       setMessages(fetchedMessages);
       const storedDelivered = localStorage.getItem(`delivered-${roomId}`);
       const storedRead = localStorage.getItem(`read-${roomId}`);
-      const currentUserId = matrixClient.getUserId();
 
       // Tìm lại tin nhắn của chính mình trùng với ID đã lưu
       if (storedDelivered) {
@@ -171,43 +173,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   }, [roomId]);
 
   useEffect(() => {
-    const currentUserId = matrixClient.getUserId();
-
-    const handlePresence = (event: MatrixEvent) => {
-      if (event.getType() !== "m.presence") return;
-      
-      const userId = event.getSender()!;
-      const content = event.getContent();
-      
-      // Xử lý read status
-      if (content.presence === "online" && content.statusMsg?.startsWith("read:")) {
-        const [_, readRoomId] = content.statusMsg.split(":");
-        if (readRoomId === roomId) {
-          const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
-          if (lastMsg) {
-            setReadEventId(lastMsg.eventId);
-          }
-        }
-      }
-
-      // Xử lý delivered status
-      if (content.presence === "online" && content.statusMsg?.startsWith("delivered:")) {
-        const [_, deliveredRoomId] = content.statusMsg.split(":");
-        if (deliveredRoomId === roomId) {
-          const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
-          if (lastMsg) {
-            setDeliveredEventId(lastMsg.eventId);
-          }
-        }
-      }
-    };
-
-    const presence = PresenceService.getInstance();
-    presence.onPresenceEvent(handlePresence);
-    return () => presence.offPresenceEvent(handlePresence);
-  }, [roomId, messages, matrixClient]);
-
-  useEffect(() => {
     const storedDelivered = localStorage.getItem(`delivered-${roomId}`);
     if (storedDelivered) setDeliveredEventId(storedDelivered);
 
@@ -226,6 +191,130 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       localStorage.setItem(`read-${roomId}`, readEventId);
     }
   }, [readEventId, roomId]);
+
+  // Listen for presence events to update delivered/read statuses in real time
+  useEffect(() => {
+    if (members.length !== 2) return;
+    const otherUserId = members.find(m => m.userId !== currentUserId)?.userId;
+    if (!otherUserId) return;
+
+    const handlePresenceEvent = (event: import("matrix-js-sdk").MatrixEvent) => {
+      if (event.getType() !== "m.presence") return;
+      if (event.getSender() !== otherUserId) return;
+      const content = event.getContent();
+      const lastOwnMsg = messages.filter(m => m.sender === currentUserId).at(-1);
+      if (!lastOwnMsg) return;
+
+      // Read: if statusMsg is exactly 'read:roomId'
+      if (content.statusMsg === `read:${roomId}`) {
+        if (readEventId !== lastOwnMsg.eventId) {
+          setReadEventId(lastOwnMsg.eventId);
+          localStorage.setItem(`read-${roomId}`, lastOwnMsg.eventId);
+        }
+        // Also clear delivered if read is set
+        if (deliveredEventId !== null) {
+          setDeliveredEventId(null);
+          localStorage.removeItem(`delivered-${roomId}`);
+        }
+      } else if (content.presence === "online") {
+        // Delivered: if online but not in the room and not read
+        if (readEventId !== lastOwnMsg.eventId && deliveredEventId !== lastOwnMsg.eventId) {
+          setDeliveredEventId(lastOwnMsg.eventId);
+          localStorage.setItem(`delivered-${roomId}`, lastOwnMsg.eventId);
+        }
+      } else if (deliveredEventId === lastOwnMsg.eventId) {
+        setDeliveredEventId(null);
+        localStorage.removeItem(`delivered-${roomId}`);
+      }
+    };
+    const presenceService = PresenceService.getInstance();
+    presenceService.onPresenceEvent(handlePresenceEvent);
+    return () => {
+      presenceService.offPresenceEvent(handlePresenceEvent);
+    };
+  }, [
+    members.length,
+    members.map(m => m.userId).join(','),
+    messages.length,
+    messages.at(-1)?.eventId,
+    currentUserId,
+    deliveredEventId,
+    readEventId,
+    roomId
+  ]);
+
+  // Real-time read status: listen for receipt events
+  useEffect(() => {
+    if (!matrixClient || !roomId) return;
+    const room = matrixClient.getRoom(roomId);
+    if (!room) return;
+
+    const handleReceipt = () => {
+      const lastOwnMsg = messages.filter(m => m.sender === currentUserId).at(-1);
+      if (!lastOwnMsg) return;
+
+      const event = room.findEventById
+        ? room.findEventById(lastOwnMsg.eventId)
+        : room.getLiveTimeline().getEvents().find(e => e.getId() === lastOwnMsg.eventId);
+      if (!event) return;
+
+      const receipts = room.getReceiptsForEvent(event);
+      const otherUser = members.find(m => m.userId !== currentUserId);
+      const isRead = receipts && otherUser && receipts.some(r => r.userId === otherUser.userId);
+
+      if (isRead) {
+        if (readEventId !== lastOwnMsg.eventId) {
+          setReadEventId(lastOwnMsg.eventId);
+          localStorage.setItem(`read-${roomId}`, lastOwnMsg.eventId);
+        }
+      } else if (readEventId === lastOwnMsg.eventId) {
+        setReadEventId(null);
+        localStorage.removeItem(`read-${roomId}`);
+      }
+    };
+
+    // @ts-expect-error: Matrix SDK event name is a string
+    room.on('Room.receipt', handleReceipt);
+    // Call once on mount to set initial state
+    handleReceipt();
+    return () => {
+      // @ts-expect-error: Matrix SDK event name is a string
+      room.off('Room.receipt', handleReceipt);
+    };
+  }, [
+    matrixClient,
+    roomId,
+    messages.length,
+    messages.at(-1)?.eventId,
+    currentUserId,
+    readEventId,
+    members.map(m => m.userId).join(',')
+  ]);
+
+  // Set presence statusMsg to 'read:roomId' when entering the room, clear on leave
+  useEffect(() => {
+    PresenceService.getInstance().updatePresence(SetPresence.Online, `read:${roomId}`);
+    return () => {
+      PresenceService.getInstance().updatePresence(SetPresence.Online, "");
+    };
+  }, [roomId]);
+
+  // On B's client: send a read receipt for the last message when viewing the room
+  useEffect(() => {
+    if (!matrixClient || !roomId || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg) {
+      const room = matrixClient.getRoom(roomId);
+      if (room) {
+        const event = room.findEventById
+          ? room.findEventById(lastMsg.eventId)
+          : room.getLiveTimeline().getEvents().find(e => e.getId() === lastMsg.eventId);
+        if (event) {
+          matrixClient.sendReadReceipt(event);
+        }
+      }
+    }
+  }, [matrixClient, roomId, messages.length, messages.at(-1)?.eventId]);
 
   const handleSendMessage = async () => {
     if (!messageText.trim()) return;
@@ -361,6 +450,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     }
   };
 
+  // Only after all hooks and currentUserId, do conditional returns
   if (!isClientReady) {
     return (
       <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
@@ -369,12 +459,24 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     );
   }
 
-  const currentUserId = matrixClient.getUserId();
   if (!currentUserId) {
     console.warn("No user logged in, redirecting to login");
     router.push("/auth/login");
     return null;
   }
+
+  // Deduplicate messages by eventId (robust)
+  const dedupeMessages = (msgs: ChatMessage[]) => {
+    const seen = new Set();
+    return msgs.filter((msg) => {
+      if (seen.has(msg.eventId)) return false;
+      seen.add(msg.eventId);
+      return true;
+    });
+  };
+
+  // Apply deduplication before rendering
+  const dedupedMessages = dedupeMessages(messages);
 
   return (
     <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
@@ -513,18 +615,8 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               results={searchResults}
               hasSearched={hasSearched}
               onSelect={(eventId) => {
-                const element = document.getElementById(`msg-${eventId}`);
-                if (element) {
-                  element.classList.add("bg-yellow-100");
-                  element.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center",
-                  });
-                  setIsSearchOpen(false);
-                  setTimeout(() => {
-                    element.classList.remove("bg-yellow-100");
-                  }, 1500);
-                }
+                setScrollToEventId(eventId);
+                setIsSearchOpen(false);
               }}
             />
           </div>
@@ -554,11 +646,13 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               </div>
             )}
             <MessageList
-              messages={messages}
+              messages={dedupedMessages}
               currentUserId={currentUserId}
               deliveredEventId={deliveredEventId}
               readEventId={readEventId}
               setPreviewImage={setPreviewImage}
+              scrollToEventId={scrollToEventId}
+              setScrollToEventId={setScrollToEventId}
             />
           </>
         )}

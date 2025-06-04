@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useLayoutEffect } from "react";
 import { format } from "date-fns";
 import { useTranslations } from "next-intl";
 
@@ -18,6 +18,8 @@ interface MessageListProps {
   readEventId?: string | null;
   getDisplayName?: (userId: string) => string;
   setPreviewImage?: (url: string) => void;
+  scrollToEventId?: string | null;
+  setScrollToEventId?: (id: string | null) => void;
 }
 
 const isSameDay = (timestamp1: number, timestamp2: number) => {
@@ -37,15 +39,40 @@ const MessageList: React.FC<MessageListProps> = ({
   readEventId,
   getDisplayName,
   setPreviewImage,
+  scrollToEventId,
+  setScrollToEventId,
 }) => {
   const t = useTranslations("MessageList");
   const containerRef = useRef<HTMLDivElement>(null);
+  const justScrolledRef = useRef(false);
 
   useEffect(() => {
-    if (containerRef.current) {
+    // Only scroll to bottom if not jumping to a searched message
+    if (!scrollToEventId && containerRef.current) {
+      if (justScrolledRef.current) {
+        justScrolledRef.current = false;
+        return;
+      }
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, scrollToEventId]);
+
+  useLayoutEffect(() => {
+    if (scrollToEventId) {
+      setTimeout(() => {
+        const element = document.getElementById(`msg-${scrollToEventId}`);
+        if (element) {
+          element.classList.add("bg-yellow-300");
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+          setTimeout(() => {
+            element.classList.remove("bg-yellow-300");
+          }, 1500);
+          justScrolledRef.current = true;
+        }
+        if (setScrollToEventId) setScrollToEventId(null);
+      }, 0);
+    }
+  }, [scrollToEventId, messages, setScrollToEventId]);
 
   let lastMessageDate: number | null = null;
 
