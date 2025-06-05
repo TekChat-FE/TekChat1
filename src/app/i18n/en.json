@@ -109,7 +109,12 @@
     "inviteAcceptError": "Failed to accept invite",
     "inviteRejected": "Invite rejected successfully",
     "inviteRejectError": "Failed to reject invite",
-    "copyToken": "Copy Token"
+    "copyToken": "Copy Token",
+    "search": "Search",
+    "userFound": "User found",
+    "userNotFound": "User not found",
+    "chat": "Chat",
+    "createContactError": "Cannot create chat with this user"
   },
   "Footer": {
     "contacts": "Contacts",
