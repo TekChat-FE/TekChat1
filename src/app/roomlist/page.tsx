@@ -55,12 +55,41 @@ const RoomList: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inviteDropdownRef = useRef<HTMLDivElement>(null);
 
+  // --- BỔ SUNG CHỨC NĂNG TÌM USER THEO MATRIX ID ---
+  const [searchedUser, setSearchedUser] = useState<{ userId: string, exists: boolean } | null>(null);
+  const [searching, setSearching] = useState(false);
+
+  const isMatrixId = (input: string) => /^@[a-zA-Z0-9._=-]+:[a-zA-Z0-9.-]+$/.test(input);
+
+  // Tự động tìm kiếm khi nhập đúng Matrix ID
+  useEffect(() => {
+    let ignore = false;
+    const searchUser = async () => {
+      if (isMatrixId(search.trim())) {
+        setSearching(true);
+        try {
+          const client = await authService.getAuthenticatedClient();
+          await client.getProfileInfo(search.trim());
+          if (!ignore) setSearchedUser({ userId: search.trim(), exists: true });
+        } catch {
+          if (!ignore) setSearchedUser({ userId: search.trim(), exists: false });
+        }
+        setSearching(false);
+      } else {
+        setSearchedUser(null);
+      }
+    };
+    searchUser();
+    return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+  // --- HẾT PHẦN BỔ SUNG ---
+
   // Check login status and sync client
   useEffect(() => {
     const checkLoginAndSync = async () => {
       try {
         const client = await authService.getAuthenticatedClient();
-        console.log("Sync state:", client.getSyncState && client.getSyncState());
         if (!client.getSyncState || client.getSyncState() === null || client.getSyncState() === "STOPPED") {
           client.startClient?.();
         }
@@ -78,26 +107,16 @@ const RoomList: React.FC = () => {
       const client = await authService.getAuthenticatedClient();
       const allRooms = client.getRooms();
       const inviteRooms = allRooms.filter((room: any) => room.getMyMembership && room.getMyMembership() === "invite");
-      // Log chi tiết từng phòng invite
-      console.log("Invite rooms detail:", inviteRooms.map(room => ({
-        roomId: room.roomId,
-        name: room.name,
-        myMembership: room.getMyMembership && room.getMyMembership(),
-        inviter: room.getDMInviter && room.getDMInviter(),
-      })));
       const invitesData: InviteData[] = inviteRooms.map((room: any) => {
         let inviter = "";
         try {
-          // Thử lấy người mời từ sự kiện mời
           const inviteEvent = room.currentState.getStateEvents('m.room.member', room.myUserId);
           if (inviteEvent && inviteEvent.getSender()) {
             inviter = inviteEvent.getSender();
           } else {
-            // Nếu không có sự kiện mời, thử lấy từ DM inviter
             inviter = room.getDMInviter ? room.getDMInviter() : "";
           }
         } catch (e) {
-          console.error("Error getting inviter:", e);
           inviter = "";
         }
         let roomName = "";
@@ -112,14 +131,12 @@ const RoomList: React.FC = () => {
           inviter,
         };
       });
-      console.log("Invites to set:", invitesData);
       setInvites(invitesData);
     } catch (error) {
       setInvites([]);
     }
   }, []);
 
-  // Luôn cập nhật lời mời khi client sync hoặc có event Room mới
   useEffect(() => {
     if (!isClientReady) return;
     fetchInvites();
@@ -131,13 +148,11 @@ const RoomList: React.FC = () => {
     (async () => {
       client = await authService.getAuthenticatedClient();
 
-      // Khi có phòng mới (bao gồm lời mời)
       onRoom = () => {
         fetchInvites();
       };
       client.on("Room", onRoom);
 
-      // Khi client sync xong (đảm bảo nhận lời mời mới nhất)
       onSync = (state: string) => {
         if (state === "PREPARED" || state === "SYNCING") {
           fetchInvites();
@@ -154,7 +169,6 @@ const RoomList: React.FC = () => {
     };
   }, [isClientReady, fetchInvites]);
 
-  // Load room list
   const loadRooms = useCallback(async () => {
     if (!isClientReady) return;
     setLoading(true);
@@ -177,7 +191,6 @@ const RoomList: React.FC = () => {
     }
   }, [isClientReady, t]);
 
-  // Xác nhận lời mời
   const handleConfirmInvite = async (inviteId: string) => {
     try {
       const client = await authService.getAuthenticatedClient();
@@ -190,7 +203,6 @@ const RoomList: React.FC = () => {
     }
   };
 
-  // Từ chối lời mời
   const handleRejectInvite = async (inviteId: string) => {
     try {
       const client = await authService.getAuthenticatedClient();
@@ -202,7 +214,6 @@ const RoomList: React.FC = () => {
     }
   };
 
-  // Update room list with new messages
   const updateRoomList = useCallback((updatedRoom: Partial<RoomData>) => {
     setRooms((prevRooms) => {
       const existingRoom = prevRooms.find((r) => r.roomId === updatedRoom.roomId);
@@ -216,7 +227,6 @@ const RoomList: React.FC = () => {
     });
   }, []);
 
-  // Listen for new messages
   useEffect(() => {
     if (!isClientReady) return;
     loadRooms();
@@ -246,7 +256,6 @@ const RoomList: React.FC = () => {
     };
   }, [isClientReady, loadRooms, updateRoomList]);
 
-  // Handle clicks outside dropdowns to close them
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -267,12 +276,10 @@ const RoomList: React.FC = () => {
     };
   }, []);
 
-  // Filter rooms by search
   const filteredRooms = rooms.filter((room) =>
     room.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Handle access token modal display
   const handleGetAccessToken = () => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
@@ -291,7 +298,6 @@ const RoomList: React.FC = () => {
     }
   };
 
-  // Handle copying access token
   const handleCopyToken = async () => {
     const accessToken = localStorage.getItem("accessToken");
     if (accessToken) {
@@ -322,7 +328,6 @@ const RoomList: React.FC = () => {
     }
   };
 
-  // Handle dropdown option selection
   const handleDropdownSelect = (option: string) => {
     if (option === 'newGroup') {
       setShowCreateRoomModal(true);
@@ -352,9 +357,6 @@ const RoomList: React.FC = () => {
       toast.error(t('createRoomError'));
     }
   };
-
-  // Log để debug UI
-  console.log("invites in render:", invites);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900 max-w-md mx-auto">
@@ -439,13 +441,45 @@ const RoomList: React.FC = () => {
       </header>
 
       <div className="p-3 bg-white dark:bg-gray-800 shadow-sm">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('searchPlaceholder')}
-          className="w-full px-5 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
-        />
+        {/* --- THANH SEARCH VÀ KẾT QUẢ USER --- */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('searchPlaceholder')}
+            className="w-full px-5 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-100"
+          />
+        </div>
+        {searchedUser && (
+          <div
+            className={`bg-white dark:bg-gray-800 shadow rounded-lg p-3 mt-2 flex items-center gap-3 cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 ${
+              !searchedUser.exists ? 'opacity-50 pointer-events-none' : ''
+            }`}
+            onClick={async () => {
+              if (!searchedUser.exists) return;
+              try {
+                const roomId = await roomService.createDirectMessage(searchedUser.userId);
+                toast.success(t('createContactSuccess'));
+                await loadRooms();
+                router.push(`/chat/${roomId}?isGroup=false`);
+              } catch (error) {
+                toast.error(t('createContactError'));
+              }
+            }}
+          >
+            <div className="w-10 h-10 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 font-bold text-lg">
+              {searchedUser.userId.charAt(1).toUpperCase()}
+            </div>
+            <div className="flex-1">
+              <div className="font-semibold">{searchedUser.userId}</div>
+              <div className="text-xs text-gray-500">
+                {searchedUser.exists ? t('userFound') : t('userNotFound')}
+              </div>
+            </div>
+          </div>
+        )}
+        {/* --- HẾT PHẦN BỔ SUNG --- */}
       </div>
 
       <div className="flex-1 overflow-y-auto pb-24">
