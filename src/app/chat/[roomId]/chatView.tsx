@@ -222,9 +222,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           setDeliveredEventId(lastOwnMsg.eventId);
           localStorage.setItem(`delivered-${roomId}`, lastOwnMsg.eventId);
         }
-      } else if (deliveredEventId === lastOwnMsg.eventId) {
-        setDeliveredEventId(null);
-        localStorage.removeItem(`delivered-${roomId}`);
       }
     };
     const presenceService = PresenceService.getInstance();
