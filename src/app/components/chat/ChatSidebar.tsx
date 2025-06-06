@@ -92,7 +92,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       }
       setError(null);
       onInviteMember();
-    } catch (error) {
+    } catch {
       setError(t('errorCheckingUser'));
     }
   };

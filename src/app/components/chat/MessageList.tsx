@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useLayoutEffect } from "react";
 import { format } from "date-fns";
-import { useTranslations } from "next-intl";
 
 interface MessageListProps {
   messages: Array<{
@@ -42,7 +41,6 @@ const MessageList: React.FC<MessageListProps> = ({
   scrollToEventId,
   setScrollToEventId,
 }) => {
-  const t = useTranslations("MessageList");
   const containerRef = useRef<HTMLDivElement>(null);
   const justScrolledRef = useRef(false);
 
@@ -164,31 +162,21 @@ const MessageList: React.FC<MessageListProps> = ({
                     ) : (
                       <p>{message.body}</p>
                     )}
-                    <div className="mt-1 text-xs text-gray-500 text-right">
-                      {formattedTime}
+                    <div className="mt-1 flex items-center justify-end gap-1 text-xs text-gray-500">
+                      <span>{formattedTime}</span>
+                      {isCurrentUser && message.eventId === lastOwnMessage?.eventId && !repliedByB && (
+                        <>
+                          {message.eventId === readEventId ? (
+                            <span className="flex items-center gap-0.5 text-green-600">✓✓</span>
+                          ) : message.eventId === deliveredEventId ? (
+                            <span className="flex items-center gap-0.5 text-gray-500">✓✓</span>
+                          ) : (
+                            <span className="flex items-center gap-0.5 text-gray-400">✓</span>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
-
-                  {isCurrentUser &&
-                    message.eventId === lastOwnMessage?.eventId &&
-                    !repliedByB && (
-                      <div className="absolute -bottom-4 right-1 text-xs flex items-center gap-1 text-gray-800">
-                        {message.eventId === readEventId ? (
-                          <span className="text-blue-600">✓✓</span>
-                        ) : message.eventId === deliveredEventId ? (
-                          <span className="text-gray-500">✓✓</span>
-                        ) : (
-                          <span className="text-gray-400">✓</span>
-                        )}
-                        <span className="italic font-medium text-[11px]">
-                          {message.eventId === readEventId
-                            ? t("read")
-                            : message.eventId === deliveredEventId
-                            ? t("delivered")
-                            : t("sent")}
-                        </span>
-                      </div>
-                    )}
                 </div>
               </div>
             </div>
