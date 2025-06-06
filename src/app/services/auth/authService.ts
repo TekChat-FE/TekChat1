@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { MatrixClient } from "matrix-js-sdk";
 import { MatrixClientManager } from "@/app/services/matrix/matrixClient";
 

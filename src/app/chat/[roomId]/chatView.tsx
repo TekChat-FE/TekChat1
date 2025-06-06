@@ -1,5 +1,6 @@
+// src/app/chat/[roomId]/chatView.tsx
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { MatrixClient, MatrixEvent, Room, RoomMember } from "matrix-js-sdk";
 import chatService, { ChatMessage } from "@/app/services/matrix/chatService";
@@ -12,131 +13,219 @@ import CallModal from "@/app/components/call/CallModal";
 import VoiceCallUI from "@/app/components/call/VoiceCallUI";
 import VideoCallUI from "@/app/components/call/VideoCallUI";
 import SearchList from "@/app/components/chat/SearchList";
-import { RoomEvent } from "matrix-js-sdk/lib/models/room";
+import { PresenceService } from "@/app/services/matrix/presenceService";
+import authService from "@/app/services/auth/authService";
+import { SetPresence } from "matrix-js-sdk";
 
 interface ChatViewProps {
   matrixClient: MatrixClient;
   roomId: string;
 }
 
-/**
- * ChatView component displays messages and manages interactions for a specific room.
- */
 const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const router = useRouter();
   const { state, startCall } = useCall();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [messageText, setMessageText] = useState("");
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [roomName, setRoomName] = useState<string>("");
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [inviteUserId, setInviteUserId] = useState("");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Chỉnh lại giá trị mặc định là false
-  const [isRoomOwner, setIsRoomOwner] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<ChatMessage[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [readEventId, setReadEventId] = useState<string | null>(null);
   const [deliveredEventId, setDeliveredEventId] = useState<string | null>(null);
+  const [isGroup, setIsGroup] = useState<boolean>(false);
+  const [isClientReady, setIsClientReady] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const fetchRoomData = useCallback(async () => {
     try {
-      const [roomName, members, isOwner, fetchedMessages] = await Promise.all([
+      const [roomName, members, fetchedMessages] = await Promise.all([
         chatService.getRoomName(roomId),
         chatService.getRoomMembers(roomId),
-        chatService.isRoomOwner(roomId),
         chatService.getRoomMessages(roomId),
       ]);
 
-      console.log("Dữ liệu phòng:", {
-        roomName,
-        members,
-        isOwner,
-        messages: fetchedMessages,
-      });
-
       setRoomName(roomName);
       setMembers(members);
-      setIsRoomOwner(isOwner);
       setMessages(fetchedMessages);
+      const storedDelivered = localStorage.getItem(`delivered-${roomId}`);
+      const storedRead = localStorage.getItem(`read-${roomId}`);
+      const currentUserId = matrixClient.getUserId();
+
+      // Tìm lại tin nhắn của chính mình trùng với ID đã lưu
+      if (storedDelivered) {
+        const matchedDelivered = fetchedMessages.find(
+          (m) => m.sender === currentUserId && m.eventId === storedDelivered
+        );
+        if (matchedDelivered) {
+          setDeliveredEventId(matchedDelivered.eventId);
+        }
+      }
+
+      if (storedRead) {
+        const matchedRead = fetchedMessages.find(
+          (m) => m.sender === currentUserId && m.eventId === storedRead
+        );
+        if (matchedRead) {
+          setReadEventId(matchedRead.eventId);
+        }
+      }
+
+      // Lấy isGroup từ roomService
+      const joinedRooms = await roomService.fetchJoinedRooms();
+      const currentRoom = joinedRooms.find((r) => r.roomId === roomId);
+      setIsGroup(currentRoom?.isGroup ?? false);
+
       setError(null);
     } catch (err) {
       console.error("Lỗi trong fetchRoomData:", err);
       setError("Không thể tải dữ liệu phòng chat.");
     }
-  }, [roomId]);
+  }, [roomId, matrixClient]);
 
-  useEffect(() => {
-    setLoading(true);
-    fetchRoomData().finally(() => setLoading(false));
-  }, [fetchRoomData]);
+  const handleNewMessage = useCallback(
+    async (event: MatrixEvent, room?: Room) => {
+      if (!room || room.roomId !== roomId) return;
 
-  useEffect(() => {
-    const setupListeners = async () => {
-      // Lắng nghe tin nhắn mới
-      const handleNewMessage = async (event: MatrixEvent, room?: Room) => {
-        if (!room || room.roomId !== roomId) return;
+      const newMessage = await chatService.processChatMessage(
+        event,
+        matrixClient
+      );
+      if (!newMessage) return;
 
-        const newMessage = await chatService.processChatMessage(
-          event,
-          matrixClient
-        );
-        if (!newMessage) return;
+      const currentUserId = matrixClient.getUserId();
+      const isOwnMessage = newMessage.sender === currentUserId;
 
-        const currentUserId = matrixClient.getUserId();
-        if (currentUserId && newMessage.sender === currentUserId) return;
+      // Bỏ qua tin nhắn của chính người gửi
+      if (isOwnMessage) return;
 
-        setMessages((prev) => {
-          if (prev.some((msg) => msg.eventId === newMessage.eventId))
-            return prev;
-          return [...prev, newMessage];
-        });
-      };
-
-      const removeMessageListener = await chatService.onNewMessage(
-        handleNewMessage
+      // Gửi "delivered" nếu là tin của người khác
+      PresenceService.getInstance().updatePresence(
+        SetPresence.Online,
+        `delivered:${roomId}`
       );
 
-      // ✅ Lắng nghe mọi hoạt động trong phòng (timeline event)
-      const handleRoomTimelineEvent = (event: MatrixEvent, room?: Room) => {
-        if (!room || room.roomId !== roomId) return;
-
-        const sender = event.getSender();
-        const currentUserId = matrixClient.getUserId();
-        if (!currentUserId || sender === currentUserId) return;
-
-        const lastOwnMessage = messages
-          .filter((m) => m.sender === currentUserId)
-          .at(-1);
-
-        if (lastOwnMessage) {
-          setDeliveredEventId(lastOwnMessage.eventId);
+      setMessages((prev) => {
+        if (prev.some((m) => m.eventId === newMessage.eventId)) {
+          return prev;
         }
-      };
+        return [...prev, newMessage];
+      });
+    },
+    [roomId, matrixClient]
+  );
 
-      // 👇 Đăng ký listener đúng kiểu
-      matrixClient.on(RoomEvent.Timeline, handleRoomTimelineEvent);
-
-      // ✅ Cleanup
-      return () => {
-        removeMessageListener?.();
-        matrixClient.removeListener(
-          RoomEvent.Timeline,
-          handleRoomTimelineEvent
-        );
-      };
+  
+  useEffect(() => {
+    const checkClientReady = async () => {
+      try {
+        const client = await authService.getAuthenticatedClient();
+        if (!client.getSyncState || client.getSyncState() === null || client.getSyncState() === "STOPPED") {
+          await client.startClient();
+        }
+        setIsClientReady(true);
+      } catch (err) {
+        console.error("Client not ready:", err);
+        router.push('/auth/login');
+      }
     };
+    checkClientReady();
+  }, [router]);
 
+  useEffect(() => {
+    if (!isClientReady) return;
+    setLoading(true);
+    fetchRoomData().finally(() => setLoading(false));
+  }, [isClientReady, fetchRoomData]);
+
+  useEffect(() => {
     let cleanup: (() => void) | undefined;
-    setupListeners().then((removeListener) => {
+
+    chatService.onNewMessage(handleNewMessage).then((removeListener) => {
       cleanup = removeListener;
     });
 
     return () => {
-      if (cleanup) cleanup();
+      cleanup?.(); // Cleanup để không nhân đôi listener
     };
-  }, [roomId, matrixClient, messages]);
+  }, [handleNewMessage]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      PresenceService.getInstance().updatePresence(
+        SetPresence.Online,
+        `read:${roomId}`
+      );
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [roomId]);
+
+  useEffect(() => {
+    const currentUserId = matrixClient.getUserId();
+
+    const handlePresence = (event: MatrixEvent) => {
+      if (event.getType() !== "m.presence") return;
+      
+      const userId = event.getSender()!;
+      const content = event.getContent();
+      
+      // Xử lý read status
+      if (content.presence === "online" && content.statusMsg?.startsWith("read:")) {
+        const [_, readRoomId] = content.statusMsg.split(":");
+        if (readRoomId === roomId) {
+          const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
+          if (lastMsg) {
+            setReadEventId(lastMsg.eventId);
+          }
+        }
+      }
+
+      // Xử lý delivered status
+      if (content.presence === "online" && content.statusMsg?.startsWith("delivered:")) {
+        const [_, deliveredRoomId] = content.statusMsg.split(":");
+        if (deliveredRoomId === roomId) {
+          const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
+          if (lastMsg) {
+            setDeliveredEventId(lastMsg.eventId);
+          }
+        }
+      }
+    };
+
+    const presence = PresenceService.getInstance();
+    presence.onPresenceEvent(handlePresence);
+    return () => presence.offPresenceEvent(handlePresence);
+  }, [roomId, messages, matrixClient]);
+
+  useEffect(() => {
+    const storedDelivered = localStorage.getItem(`delivered-${roomId}`);
+    if (storedDelivered) setDeliveredEventId(storedDelivered);
+
+    const storedRead = localStorage.getItem(`read-${roomId}`);
+    if (storedRead) setReadEventId(storedRead);
+  }, [roomId]);
+
+  useEffect(() => {
+    if (deliveredEventId) {
+      localStorage.setItem(`delivered-${roomId}`, deliveredEventId);
+    }
+  }, [deliveredEventId, roomId]);
+
+  useEffect(() => {
+    if (readEventId) {
+      localStorage.setItem(`read-${roomId}`, readEventId);
+    }
+  }, [readEventId, roomId]);
 
   const handleSendMessage = async () => {
     if (!messageText.trim()) return;
@@ -147,21 +236,25 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       sender: currentUserId || "Bạn",
       body: messageText,
       eventId: tempEventId,
+      tempId: tempEventId,
       avatarUrl: undefined,
       timestamp: Date.now(),
+      status: "sending",
     };
     setMessages((prev) => [...prev, newMessage]);
     setMessageText("");
 
     await withErrorHandling(
-      () => chatService.sendMessage(roomId, messageText),
+      () => chatService.sendMessage(roomId, messageText, tempEventId),
       "Không thể gửi tin nhắn.",
       setError
     )
       .then((eventId) => {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.eventId === tempEventId ? { ...msg, eventId } : msg
+            msg.eventId === tempEventId
+              ? { ...msg, eventId, status: "sent" }
+              : msg
           )
         );
       })
@@ -169,7 +262,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
         setMessages((prev) =>
           prev.map((msg) =>
             msg.eventId === tempEventId
-              ? { ...msg, body: `Lỗi gửi: ${messageText}` }
+              ? { ...msg, body: `Lỗi gửi: ${messageText}`, status: "error" }
               : msg
           )
         );
@@ -212,6 +305,70 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     startCall(roomId, "video");
   };
 
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedImage(file);
+    }
+  };
+
+  const handleSendImage = async () => {
+    if (!selectedImage) return;
+
+    setIsUploading(true);
+    const currentUserId = matrixClient.getUserId();
+    const tempEventId = `temp-${Date.now()}`;
+
+    try {
+      // Tạo tin nhắn tạm thời
+      const tempMessage: ChatMessage = {
+        sender: currentUserId || "Bạn",
+        body: "Đang tải ảnh...",
+        eventId: tempEventId,
+        tempId: tempEventId,
+        avatarUrl: undefined,
+        timestamp: Date.now(),
+        status: "sending",
+        isImage: true,
+        imageUrl: URL.createObjectURL(selectedImage)
+      };
+      setMessages(prev => [...prev, tempMessage]);
+
+      // Gửi ảnh lên server
+      const eventId = await chatService.sendImage(roomId, selectedImage, tempEventId);
+      
+      // Cập nhật tin nhắn với eventId thật
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.eventId === tempEventId 
+            ? { ...msg, eventId, status: "sent" }
+            : msg
+        )
+      );
+    } catch (error) {
+      console.error("Lỗi khi gửi ảnh:", error);
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.eventId === tempEventId 
+            ? { ...msg, body: "Lỗi khi gửi ảnh", status: "error" }
+            : msg
+        )
+      );
+    } finally {
+      setSelectedImage(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setIsUploading(false);
+    }
+  };
+
+  if (!isClientReady) {
+    return (
+      <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
   const currentUserId = matrixClient.getUserId();
   if (!currentUserId) {
     console.warn("No user logged in, redirecting to login");
@@ -243,7 +400,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                 />
               </svg>
             </button>
-            <h1 className="text-xl font-bold text-gray-900 truncate">
+            <h1 className="text-xl font-bold text-gray-900 truncate max-w-[180px] overflow-hidden whitespace-nowrap">
               {roomName}
             </h1>
           </div>
@@ -313,7 +470,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                   d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M4 6h8a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"
                 />
               </svg>
-
             </button>
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -367,7 +523,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                   setIsSearchOpen(false);
                   setTimeout(() => {
                     element.classList.remove("bg-yellow-100");
-                  }, 1000);
+                  }, 1500);
                 }
               }}
             />
@@ -401,6 +557,8 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               messages={messages}
               currentUserId={currentUserId}
               deliveredEventId={deliveredEventId}
+              readEventId={readEventId}
+              setPreviewImage={setPreviewImage}
             />
           </>
         )}
@@ -408,21 +566,34 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
         {/* Footer - Only render when there is no active call */}
         {!state.activeCall && (
           <footer className="bg-white p-4 shadow-inner">
+            {selectedImage && (
+              <div className="mb-2 relative">
+                <img
+                  src={URL.createObjectURL(selectedImage)}
+                  alt="Selected"
+                  className="max-h-32 rounded-lg"
+                />
+                <button
+                  onClick={() => setSelectedImage(null)}
+                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
             <div className="flex items-center space-x-3">
-              <input
-                type="text"
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder="Nhập tin nhắn..."
-                className="flex-1 rounded-full border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-              />
-              <button
-                onClick={handleSendMessage}
-                className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition"
-              >
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                  ref={fileInputRef}
+                />
                 <svg
-                  className="w-5 h-5"
+                  className="w-6 h-6 text-gray-600 hover:text-gray-800"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -431,10 +602,62 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth="2"
-                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
                 </svg>
-              </button>
+              </label>
+              <input
+                type="text"
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                placeholder="Nhập tin nhắn..."
+                className="flex-1 rounded-full border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
+              />
+              {selectedImage ? (
+                <button
+                  onClick={handleSendImage}
+                  disabled={isUploading}
+                  className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition disabled:opacity-50"
+                >
+                  {isUploading ? (
+                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                  ) : (
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                      />
+                    </svg>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={handleSendMessage}
+                  className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                    />
+                  </svg>
+                </button>
+              )}
             </div>
           </footer>
         )}
@@ -447,10 +670,9 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           members={members}
           inviteUserId={inviteUserId}
           setInviteUserId={setInviteUserId}
-          isRoomOwner={isRoomOwner}
           onInviteMember={handleInviteMember}
           onDeleteRoom={handleDeleteRoom}
-          isGroup={false} // Đặt thành false nếu là contact
+          isGroup={isGroup}
         />
       )}
 
@@ -458,6 +680,20 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
         incomingCall={state.incomingCall}
         callerName={state.callerName}
       />
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+          onClick={() => setPreviewImage(null)}
+        >
+          <img
+            src={previewImage}
+            alt="Preview"
+            className="max-h-[90vh] max-w-[90vw] rounded-lg shadow-lg"
+            onClick={e => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };

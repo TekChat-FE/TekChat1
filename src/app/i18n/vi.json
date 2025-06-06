@@ -1,5 +1,7 @@
 {
   "Home": {
+    "pageTitle": "ChatSphere - Nhắn tin & Hợp tác tức thì",
+    "metaDescription": "Tham gia ChatSphere để giao tiếp liền mạch, an toàn và tức thì với bạn bè, đội nhóm và cộng đồng.",
     "title": "Kết nối ngay với ChatSphere",
     "description": "Trải nghiệm giao tiếp mượt mà với bạn bè và đội nhóm bằng nền tảng chat hiện đại của chúng tôi.",
     "login": "Đăng nhập",
@@ -8,8 +10,14 @@
     "chatsphere": "ChatSphere",
     "chatDemo": {
       "message1": "Chào, mọi chuyện thế nào?",
-      "message2": "Tuyệt! Còn bạn thì sao?"
-    }
+      "message1Aria": "Người dùng A nói: Chào, mọi chuyện thế nào?",
+      "message2": "Tuyệt! Còn bạn thì sao?",
+      "message2Aria": "Người dùng B nói: Tuyệt! Còn bạn thì sao?"
+    },
+    "userAAvatar": "Hình đại diện của Người dùng A",
+    "userBAvatar": "Hình đại diện của Người dùng B",
+    "existingSession": "Đã có một phiên hoạt động. Vui lòng đăng xuất khỏi các thiết bị khác để tiếp tục.",
+    "sessionVerificationFailed": "Xác minh phiên thất bại. Vui lòng thử đăng nhập lại."
   },
   "Profile": {
     "title": "Hồ sơ của bạn",
@@ -49,8 +57,18 @@
     "back": "Quay lại",
     "signupPrompt": "Bạn chưa có tài khoản?",
     "signupLink": "Đăng ký ngay",
+    "confirmModalTitle": "Xác nhận tài khoản của bạn",
+    "confirmModalDescription": "Bạn hiện đang đăng nhập bằng tài khoản trên. Tiếp tục để sử dụng hoặc chuyển sang tài khoản khác.",
+    "switchAccountPrompt": "Muốn chuyển sang tài khoản khác?",
+    "continueButton": "Tiếp tục",
+    "switchAccountButton": "Đổi tài khoản",
+    "closeModal": "Đóng modal",
+    "loginSuccess": "Đăng nhập thành công!",
+    "continueSession": "Tiếp tục với phiên hiện tại.",
+    "logoutSuccess": "Đăng xuất thành công!",
+    "logoutFailed": "Đăng xuất thất bại. Vui lòng thử lại.",
     "validation": {
-      "invalidHomeserver": "URL Homeserver không hợp lệ. Ví dụ: https://matrix.org",
+      "invalidHomeserver": "URL Homeserver không hợp lệ. Ví dụ: https://matrix.teknix.dev",
       "emptyAccessToken": "Mã truy cập không được để trống.",
       "invalidAccessToken": "Định dạng mã truy cập không hợp lệ.",
       "invalidUsername": "Tên người dùng không hợp lệ (@username:homeserver).",
@@ -64,10 +82,34 @@
     "searchPlaceholder": "Tìm kiếm",
     "loading": "Đang tải...",
     "noRooms": "Không có phòng nào.",
+    "noMessages": "Không có tin nhắn",
     "createRoomSuccess": "Phòng {type} đã được tạo thành công!",
     "createRoomSuccessTypeGroup": "Nhóm",
     "createRoomSuccessTypeContact": "Liên hệ",
-    "createRoomError": "Không thể tạo phòng. Vui lòng thử lại!"
+    "createRoomError": "Không thể tạo phòng. Vui lòng thử lại!",
+    "accessTokenTitle": "Mã truy cập",
+    "accessTokenLabel": "Mã truy cập",
+    "hint": "Gợi ý",
+    "accessTokenHint": "Để lấy mã truy cập, đăng nhập vào tài khoản của bạn và nhấp vào biểu tượng Khóa. Trong biểu tượng Khóa ở Phòng, bạn có thể tạo hoặc xem mã truy cập. Sao chép mã tại đây hoặc sử dụng nút Sao chép bên dưới.",
+    "noAccessToken": "Không tìm thấy mã truy cập.",
+    "tokenCopied": "Mã truy cập đã được sao chép vào bộ nhớ tạm!",
+    "tokenCopyFailed": "Không thể sao chép mã truy cập.",
+    "copy": "Sao chép",
+    "close": "Đóng",
+    "closeModal": "Đóng modal",
+    "newGroup": "Tạo Nhóm Mới",
+    "newContact": "Tạo Liên Hệ Mới",
+    "invitesTitle": "Lời mời",
+    "noInvites": "Không có lời mời nào đang chờ",
+    "invitedBy": "Được mời bởi",
+    "confirm": "Xác nhận",
+    "reject": "Từ chối",
+    "inviteAccepted": "Đã chấp nhận lời mời thành công",
+    "inviteAcceptError": "Không thể chấp nhận lời mời",
+    "inviteRejected": "Đã từ chối lời mời thành công",
+    "inviteRejectError": "Không thể từ chối lời mời",
+    "createContactSuccess": "Đã tạo liên hệ thành công",
+    "copyToken": "Sao chép mã"
   },
   "Footer": {
     "contacts": "Danh bạ",
@@ -84,15 +126,29 @@
     "newContactButton": "Liên hệ mới",
     "newGroupButton": "Nhóm mới",
     "errorEmptyRoomName": "Vui lòng nhập tên phòng.",
+    "errorNotEnoughMembers": "Cần ít nhất 2 thành viên được mời (không tính bạn).",
+    "errorInvalidUserId": "Định dạng User ID không hợp lệ (ví dụ: @user:matrix.org)",
+    "errorDuplicateUserId": "User ID đã tồn tại trong danh sách!",
+    "errorUserNotFound": "Không tìm thấy người dùng này!",
+    "errorCheckingUser": "Có lỗi khi kiểm tra người dùng. Vui lòng thử lại!",
     "cancelButton": "Hủy",
-    "createButton": "Tạo"
+    "createButton": "Tạo",
+    "addMemberPlaceholder": "Nhập User ID (ví dụ: @user:matrix.org)",
+    "addMemberButton": "Thêm thành viên"
   },
   "ChatSidebar": {
     "title": "Thành viên",
     "userIdPlaceholder": "Nhập User ID",
     "addMemberButton": "Thêm thành viên",
-    "deleteRoomButton": "Xóa phòng",
-    "closeButton": "Đóng"
+    "deleteRoomButton": "Rời khỏi phòng",
+    "closeButton": "Đóng",
+    "online": "Đang hoạt động",
+    "offline": "Không hoạt động",
+    "errorEmptyUserId": "Vui lòng nhập User ID",
+    "errorInvalidUserId": "Định dạng User ID không hợp lệ (ví dụ: @user:matrix.org)",
+    "errorUserAlreadyInRoom": "Người dùng này đã có trong phòng!",
+    "errorUserNotFound": "Không tìm thấy người dùng này!",
+    "errorCheckingUser": "Có lỗi khi kiểm tra người dùng. Vui lòng thử lại!"
   },
   "CallModal": {
     "incomingVideoCall": "Cuộc gọi video đến từ {callerName}",
@@ -129,5 +185,17 @@
     "sending": "Đang gửi...",
     "sent": "Đã gửi",
     "delivered": "Đã nhận"
+  },
+  "CreateContactModal": {
+    "title": "Liên hệ mới",
+    "userIdLabel": "ID người dùng",
+    "userIdEmpty": "ID người dùng không được để trống",
+    "userIdInvalid": "Định dạng ID người dùng không hợp lệ (ví dụ: @user:matrix.org)",
+    "create": "Tạo",
+    "close": "Hủy",
+    "createSuccess": "Tạo liên hệ thành công",
+    "createError": "Không thể tạo liên hệ",
+    "cannotCreateContactWithSelf": "Không thể tạo liên hệ với chính mình",
+    "contactAlreadyExists": "Bạn đã có liên hệ với người dùng này"
   }
 }

@@ -1,3 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { createClient, MatrixClient, SyncState, ClientEvent } from "matrix-js-sdk";
+import { MATRIX_CONFIG } from "@/app/services/utils/config";
+import { PresenceService } from "./presenceService";
+
+// Optional PresenceService import to avoid breaking if not available
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export class MatrixClientManager {
   private static client: any | null = null;
   private static isInitializing: boolean = false;
@@ -57,107 +65,53 @@ export class MatrixClientManager {
    * @param userId The user ID.
    * @returns The initialized Matrix client.
    */
-  static async initialize(accessToken: string, userId: string): Promise<any> {
+  public static async initialize(accessToken: string, userId: string): Promise<MatrixClient> {
     if (typeof window === "undefined") {
       throw new Error("Matrix client initialization is not supported on server-side.");
     }
 
     if (this.client && this.client.getSyncState() !== null) {
-      console.log(`Trả về client đã khởi tạo: ${userId}, trạng thái: ${this.client.getSyncState()}`);
       return this.client;
     }
 
-    if (this.isInitializing) {
-      console.log(`Đang khởi tạo client cho ${userId}, chờ hoàn tất...`);
-      await this.syncPromise;
-      if (this.client) return this.client;
-      throw new Error("Khởi tạo client thất bại.");
+    const baseUrl = localStorage.getItem("matrix_homeserver") || MATRIX_CONFIG.BASE_URL;
+    if (!baseUrl) {
+      throw new Error("Homeserver URL not found in localStorage or config.");
     }
-
-    this.isInitializing = true;
-    this.syncPromise = new Promise(async (resolve, reject) => {
-      try {
-        // Get baseUrl from localStorage
-        const baseUrl = localStorage.getItem("matrix_homeserver");
-        if (!baseUrl) {
-          throw new Error("Homeserver URL not found in localStorage.");
-        }
-
-        // Validate baseUrl
-        try {
-          new URL(baseUrl);
-        } catch {
-          throw new Error("Invalid homeserver URL: " + baseUrl);
-        }
-
-        // Load matrix-js-sdk
-        const { createClient, ClientEvent, SyncState } = await this.loadMatrixSdk();
-
-        // Export for other modules
-        this.createClient = createClient;
-        this.ClientEvent = ClientEvent;
-        this.SyncState = SyncState;
-
-        // Validate access token
-        await this.validateToken(baseUrl, accessToken).catch((error) => {
-          console.error(`Lỗi xác thực token cho ${userId}:`, error);
-          reject(error);
-        });
-
-        let deviceId = sessionStorage.getItem(`deviceId_${userId}`);
-        if (!deviceId) {
-          deviceId = this.generateDeviceId(userId);
-          sessionStorage.setItem(`deviceId_${userId}`, deviceId);
-        }
-
-        console.log(`Khởi tạo MatrixClient cho user ${userId} với deviceId: ${deviceId}, baseUrl: ${baseUrl}`);
-
-        this.client = createClient({
-          baseUrl,
-          accessToken,
-          userId,
-          deviceId,
-        });
-
-        this.client.on(ClientEvent.Sync, (state: string, prevState: string | null) => {
-          console.log(`Trạng thái sync cho ${userId} (deviceId: ${deviceId}): ${state} (trước đó: ${prevState})`);
-          if (state === SyncState.Prepared || state === SyncState.Syncing) {
-            console.log(`✅ MatrixClient đã đồng bộ xong cho ${userId}!`);
-            resolve();
-          } else if (state === SyncState.Error) {
-            console.error(`❌ Lỗi đồng bộ hóa cho ${userId}!`);
-            reject(new Error("Lỗi đồng bộ hóa client."));
-          }
-        });
-
-        this.client.startClient({ initialSyncLimit: 10 }).catch((error: any) => {
-          console.error(`Lỗi khi khởi động client cho ${userId}:`, error);
-          reject(new Error(`Không thể khởi động client: ${error.message}`));
-        });
-      } catch (error: any) {
-        console.error(`Lỗi khi khởi tạo client cho ${userId}:`, error);
-        reject(error);
-      }
-    });
 
     try {
-      await this.syncPromise;
-      this.isInitializing = false;
-      this.syncPromise = null;
-      if (!this.client) throw new Error("Client không được khởi tạo.");
-      return this.client;
-    } catch (error: any) {
-      this.isInitializing = false;
-      this.syncPromise = null;
-      this.client = null;
-      // Clear localStorage on token-related errors
-      if (error.message.includes("Invalid access token") || error.message.includes("Token validation failed")) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("userId");
-        localStorage.removeItem("matrix_homeserver");
-      }
-      throw error;
+      new URL(baseUrl);
+    } catch {
+      throw new Error("Invalid homeserver URL: " + baseUrl);
     }
+
+    await this.loadMatrixSdk();
+
+    let deviceId = sessionStorage.getItem(`deviceId_${userId}`);
+    if (!deviceId) {
+      deviceId = this.generateDeviceId(userId);
+      sessionStorage.setItem(`deviceId_${userId}`, deviceId);
+    }
+
+    this.client = createClient({
+      baseUrl,
+      accessToken,
+      userId,
+      deviceId,
+    });
+
+    // Initialize PresenceService if available
+    if (PresenceService) {
+      const presenceService = PresenceService.getInstance();
+      presenceService.initialize(this.client).then(() => {
+        presenceService.updatePresence('online', 'online').catch((err) =>
+          console.error('[ERROR] Failed to set online status after initialization:', err)
+        );
+      });
+    }
+
+    await this.client.startClient({ initialSyncLimit: 10 });
+    return this.client;
   }
 
   /**
@@ -171,8 +125,11 @@ export class MatrixClientManager {
   /**
    * Resets the Matrix client.
    */
-  static reset(): void {
+  static async reset(): Promise<void> {
     if (this.client) {
+      if (PresenceService) {
+        await PresenceService.getInstance().updatePresence('offline', '');
+      }
       this.client.stopClient();
       this.client = null;
     }
@@ -189,8 +146,8 @@ export class MatrixClientManager {
     return `${userId.split(':')[0]}-${Math.random().toString(36).substring(2, 15)}`;
   }
 
-  // Exported utilities
-  static createClient: any = null;
-  static ClientEvent: any = null;
-  static SyncState: any = null;
+  // Exported utilities from matrix-js-sdk
+  static createClient = createClient;
+  static ClientEvent = ClientEvent;
+  static SyncState = SyncState;
 }

@@ -14,13 +14,17 @@ import authService from "@/app/services/auth/authService";
 import { MATRIX_CONFIG } from "@/app/services/utils/config";
 import { formatTimestamp } from "@/app/services/utils/dateUtils";
 import { RoomData } from "@/app/services/matrix/roomService";
-
+  
 export interface ChatMessage {
   sender: string;
   body: string;
   eventId: string;
   avatarUrl?: string | null | undefined;
   timestamp: number;
+  tempId?: string;
+  status?: "sending" | "sent" | "delivered" | "read" | "error";
+  isImage?: boolean;
+  imageUrl?: string;
 }
 
 export class ChatService {
@@ -96,17 +100,6 @@ export class ChatService {
     return room ? room.name || "Không rõ tên phòng" : "Không rõ tên phòng";
   }
 
-  async isRoomOwner(roomId: string): Promise<boolean> {
-    const client = await this.getClient();
-    const room = client.getRoom(roomId);
-    if (!room) return false;
-    const userId = client.getUserId();
-    const creator = room.currentState
-      .getStateEvents(EventType.RoomCreate, "")
-      ?.getSender();
-    return userId === creator;
-  }
-
   private async getTimelineEvents(room: Room): Promise<MatrixEvent[]> {
     return room.getLiveTimeline().getEvents();
   }
@@ -157,9 +150,25 @@ export class ChatService {
             );
           }
 
+          const content = event.getContent();
+          if (content.msgtype === "m.image" && content.url) {
+            return {
+              sender: senderId || "",
+              body: content.body || "",
+              eventId: event.getId() || `msg-${Date.now()}`,
+              avatarUrl: avatarUrl,
+              timestamp:
+                typeof timestamp === "number" && !isNaN(timestamp)
+                  ? timestamp
+                  : Date.now(),
+              isImage: true,
+              imageUrl: client.mxcUrlToHttp(content.url) || undefined,
+            };
+          }
+
           return {
             sender: senderId || "",
-            body: event.getContent()?.body || "",
+            body: content.body || "",
             eventId: event.getId() || `msg-${Date.now()}`,
             avatarUrl: avatarUrl,
             timestamp:
@@ -204,24 +213,33 @@ export class ChatService {
     return await this.fetchRoomMessages(roomId);
   }
 
-  async sendMessage(roomId: string, messageText: string): Promise<string> {
+  async sendMessage(
+    roomId: string,
+    messageText: string,
+    txnId?: string
+  ): Promise<string> {
     if (!messageText.trim()) {
       throw new Error("Tin nhắn không được để trống.");
     }
     try {
       const client = await this.getClient();
-      const response = await client.sendEvent(roomId, EventType.RoomMessage, {
-        msgtype: MsgType.Text,
-        body: messageText,
-      });
+      const response = await client.sendMessage(
+        roomId,
+        {
+          msgtype: MsgType.Text,
+          body: messageText,
+        },
+        txnId // ✅ thêm dòng này
+      );
       return response.event_id;
     } catch (error) {
       throw new Error(
-        `Không thể gửi tin nhắn: ${error instanceof Error ? error.message : "Lỗi không xác định"}`
+        `Không thể gửi tin nhắn: ${
+          error instanceof Error ? error.message : "Lỗi không xác định"
+        }`
       );
     }
   }
-
   async inviteMember(roomId: string, userId: string): Promise<void> {
     if (!userId.trim()) {
       throw new Error("User ID không được để trống.");
@@ -231,7 +249,9 @@ export class ChatService {
       await client.invite(roomId, userId);
     } catch (error) {
       throw new Error(
-        `Không thể mời thành viên: ${error instanceof Error ? error.message : "Lỗi không xác định"}`
+        `Không thể mời thành viên: ${
+          error instanceof Error ? error.message : "Lỗi không xác định"
+        }`
       );
     }
   }
@@ -269,17 +289,19 @@ export class ChatService {
     room: Room,
     client: MatrixClient
   ): Promise<Partial<RoomData> | null> {
-    if (event.getType() !== 'm.room.message') return null;
+    if (event.getType() !== "m.room.message") return null;
     const roomId = event.getRoomId();
     if (!roomId) return null;
 
     const content = event.getContent();
     const senderId = event.getSender();
-    const senderName = senderId ? client.getUser(senderId)?.displayName || senderId : 'Unknown';
+    const senderName = senderId
+      ? client.getUser(senderId)?.displayName || senderId
+      : "Unknown";
 
     return {
       roomId,
-      lastMessage: content.body || 'Tin nhắn không có nội dung',
+      lastMessage: content.body || "Tin nhắn không có nội dung",
       timestamp: formatTimestamp(event.getTs()),
       ts: event.getTs(),
       sender: senderName,
@@ -296,30 +318,64 @@ export class ChatService {
     event: MatrixEvent,
     client: MatrixClient
   ): Promise<ChatMessage | null> {
-    if (event.getType() !== 'm.room.message') return null;
+    if (event.getType() !== "m.room.message") return null;
     const senderId = event.getSender();
     if (!senderId) return null;
 
     let avatarUrl: string | null | undefined;
     try {
       const profile = await client.getProfileInfo(senderId);
-      avatarUrl = profile.avatar_url ? client.mxcUrlToHttp(profile.avatar_url) : undefined;
+      avatarUrl = profile.avatar_url
+        ? client.mxcUrlToHttp(profile.avatar_url)
+        : undefined;
     } catch (err) {
       console.error(`Lỗi khi lấy avatar cho ${senderId}:`, err);
     }
 
     const timestamp = event.getTs();
-    if (typeof timestamp !== 'number' || isNaN(timestamp)) {
-      console.warn(`Timestamp không hợp lệ cho sự kiện ${event.getId()}:`, timestamp);
+    const eventId = event.getId();
+    if (!eventId) return null;
+
+    const content = event.getContent();
+    if (content.msgtype === "m.image" && content.url) {
+      return {
+        sender: senderId,
+        body: content.body || "",
+        eventId,
+        avatarUrl,
+        timestamp: typeof timestamp === "number" && !isNaN(timestamp) ? timestamp : Date.now(),
+        isImage: true,
+        imageUrl: client.mxcUrlToHttp(content.url) || undefined,
+      };
     }
 
     return {
       sender: senderId,
-      body: event.getContent()?.body || '',
-      eventId: event.getId() || `msg-${Date.now()}`,
+      body: content.body || "",
+      eventId,
       avatarUrl,
-      timestamp: typeof timestamp === 'number' && !isNaN(timestamp) ? timestamp : Date.now(),
+      timestamp: typeof timestamp === "number" && !isNaN(timestamp) ? timestamp : Date.now(),
     };
+  }
+
+  async sendImage(roomId: string, imageFile: File, tempEventId: string): Promise<string> {
+    try {
+      const client = await this.getClient();
+      const upload = await client.uploadContent(imageFile);
+      const response = await client.sendMessage(roomId, {
+        msgtype: MsgType.Image,
+        body: imageFile.name,
+        url: upload.content_uri,
+        info: {
+          mimetype: imageFile.type,
+          size: imageFile.size,
+        },
+      });
+      return response.event_id;
+    } catch (error) {
+      console.error("Error sending image:", error);
+      throw error;
+    }
   }
 }
 
