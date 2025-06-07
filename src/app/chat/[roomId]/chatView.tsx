@@ -2,7 +2,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { MatrixClient, MatrixEvent, Room, RoomMember } from "matrix-js-sdk";
+import { MatrixClient, MatrixEvent, Room, RoomMember, RoomMemberEvent } from "matrix-js-sdk";
 import chatService, { ChatMessage } from "@/app/services/matrix/chatService";
 import roomService from "@/app/services/matrix/roomService";
 import { withErrorHandling } from "@/app/services/utils/withErrorHandling";
@@ -50,6 +50,9 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const currentUserId = matrixClient.getUserId();
   const [scrollToEventId, setScrollToEventId] = useState<string | null>(null);
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTypingSentRef = useRef<number>(0);
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -315,6 +318,45 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     }
   }, [matrixClient, roomId, messages.length, messages.at(-1)?.eventId]);
 
+  // Listen for typing events from the other user
+  useEffect(() => {
+    if (!matrixClient || !roomId || members.length !== 2) return;
+    const otherUser = members.find(m => m.userId !== currentUserId);
+    if (!otherUser) return;
+
+    const handleTyping = (_event: MatrixEvent, member: RoomMember) => {
+      if (member.userId === otherUser.userId) {
+        setOtherUserTyping(!!member.typing);
+      }
+    };
+    matrixClient.on(RoomMemberEvent.Typing, handleTyping);
+    return () => {
+      matrixClient.off(RoomMemberEvent.Typing, handleTyping);
+    };
+  }, [matrixClient, roomId, members, currentUserId]);
+
+  // Helper to send typing event
+  const sendTyping = (isTyping: boolean) => {
+    if (!matrixClient || !roomId) return;
+    const now = Date.now();
+    // Only send if state changes or every 3 seconds
+    if (
+      isTyping ||
+      now - lastTypingSentRef.current > 3000
+    ) {
+      matrixClient.sendTyping(roomId, isTyping, 5000); // 5s timeout
+      lastTypingSentRef.current = now;
+    }
+  };
+
+  // Clean up typing on unmount
+  useEffect(() => {
+    if (!matrixClient || !roomId) return;
+    return () => {
+      matrixClient.sendTyping(roomId, false, 1000);
+    };
+  }, [matrixClient, roomId]);
+
   const handleSendMessage = async () => {
     if (!messageText.trim()) return;
 
@@ -447,6 +489,16 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       if (fileInputRef.current) fileInputRef.current.value = "";
       setIsUploading(false);
     }
+  };
+
+  // In the message input, trigger typing events
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessageText(e.target.value);
+    sendTyping(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      sendTyping(false);
+    }, 4000); // Stop typing after 4s of inactivity
   };
 
   // Only after all hooks and currentUserId, do conditional returns
@@ -609,74 +661,79 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
 
         {/* Footer - Only render when there is no active call */}
         {!state.activeCall && (
-          <footer className="bg-white p-4 shadow-inner">
-            {selectedImage && (
-              <div className="mb-2 relative">
-                <img
-                  src={URL.createObjectURL(selectedImage)}
-                  alt="Selected"
-                  className="max-h-32 rounded-lg"
-                />
-                <button
-                  onClick={() => setSelectedImage(null)}
-                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+          <>
+            {otherUserTyping && (
+              <div className="px-5 pb-2 text-sm text-gray-500 animate-pulse">Typing ...</div>
             )}
-            <div className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-2 mr-2">
-                <label className="cursor-pointer flex items-center">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageSelect}
-                    className="hidden"
-                    ref={fileInputRef}
+            <footer className="bg-white p-4 shadow-inner">
+              {selectedImage && (
+                <div className="mb-2 relative">
+                  <img
+                    src={URL.createObjectURL(selectedImage)}
+                    alt="Selected"
+                    className="max-h-32 rounded-lg"
                   />
-                  <FiImage className="w-7 h-7 text-gray-500 hover:text-blue-500 transition" />
-                </label>
-              </div>
-              <div className="flex-1">
-                <input
-                  type="text"
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                  placeholder="Nhập tin nhắn..."
-                  className="w-full bg-white rounded-full shadow border border-gray-200 px-5 py-2 text-gray-800 placeholder-gray-400 focus:ring-0 focus:outline-none border-none text-base"
-                  style={{ minHeight: 38 }}
-                />
-              </div>
-              <div className="flex items-center ml-2">
-                {selectedImage ? (
                   <button
-                    onClick={handleSendImage}
-                    disabled={isUploading}
-                    className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition disabled:opacity-50 flex items-center justify-center shadow-md"
-                    style={{ width: 42, height: 42 }}
+                    onClick={() => setSelectedImage(null)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
                   >
-                    {isUploading ? (
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
-                    ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-2 mr-2">
+                  <label className="cursor-pointer flex items-center">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                      ref={fileInputRef}
+                    />
+                    <FiImage className="w-7 h-7 text-gray-500 hover:text-blue-500 transition" />
+                  </label>
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    value={messageText}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                    placeholder="Nhập tin nhắn..."
+                    className="w-full bg-white rounded-full shadow border border-gray-200 px-5 py-2 text-gray-800 placeholder-gray-400 focus:ring-0 focus:outline-none border-none text-base"
+                    style={{ minHeight: 38 }}
+                  />
+                </div>
+                <div className="flex items-center ml-2">
+                  {selectedImage ? (
+                    <button
+                      onClick={handleSendImage}
+                      disabled={isUploading}
+                      className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition disabled:opacity-50 flex items-center justify-center shadow-md"
+                      style={{ width: 42, height: 42 }}
+                    >
+                      {isUploading ? (
+                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                      ) : (
+                        <IoSend className="w-6 h-6" />
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleSendMessage}
+                      className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition flex items-center justify-center shadow-md"
+                      style={{ width: 42, height: 42 }}
+                    >
                       <IoSend className="w-6 h-6" />
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleSendMessage}
-                    className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition flex items-center justify-center shadow-md"
-                    style={{ width: 42, height: 42 }}
-                  >
-                    <IoSend className="w-6 h-6" />
-                  </button>
-                )}
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          </footer>
+            </footer>
+          </>
         )}
       </div>
 
