@@ -3,7 +3,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { MatrixClient, MatrixEvent, Room, RoomMember } from "matrix-js-sdk";
+import { MatrixClient, MatrixEvent, Room, RoomMember, RoomMemberEvent } from "matrix-js-sdk";
 import chatService, { ChatMessage } from "@/app/services/matrix/chatService";
 import roomService from "@/app/services/matrix/roomService";
 import { withErrorHandling } from "@/app/services/utils/withErrorHandling";
@@ -17,6 +17,8 @@ import SearchList from "@/app/components/chat/SearchList";
 import { PresenceService } from "@/app/services/matrix/presenceService";
 import authService from "@/app/services/auth/authService";
 import { SetPresence } from "matrix-js-sdk";
+import { FiSearch, FiPhone, FiVideo, FiMoreVertical, FiImage } from "react-icons/fi";
+import { IoSend } from "react-icons/io5";
 
 interface ChatViewProps {
   matrixClient: MatrixClient;
@@ -24,6 +26,7 @@ interface ChatViewProps {
 }
 
 const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
+  // All hooks and variables must be declared here, before any return
   const router = useRouter();
   const { state, startCall } = useCall();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -46,6 +49,11 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [isClientReady, setIsClientReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const currentUserId = matrixClient.getUserId();
+  const [scrollToEventId, setScrollToEventId] = useState<string | null>(null);
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTypingSentRef = useRef<number>(0);
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -60,7 +68,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       setMessages(fetchedMessages);
       const storedDelivered = localStorage.getItem(`delivered-${roomId}`);
       const storedRead = localStorage.getItem(`read-${roomId}`);
-      const currentUserId = matrixClient.getUserId();
 
       // Tìm lại tin nhắn của chính mình trùng với ID đã lưu
       if (storedDelivered) {
@@ -172,43 +179,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   }, [roomId]);
 
   useEffect(() => {
-    const currentUserId = matrixClient.getUserId();
-
-    const handlePresence = (event: MatrixEvent) => {
-      if (event.getType() !== "m.presence") return;
-      
-      const userId = event.getSender()!;
-      const content = event.getContent();
-      
-      // Xử lý read status
-      if (content.presence === "online" && content.statusMsg?.startsWith("read:")) {
-        const [_, readRoomId] = content.statusMsg.split(":");
-        if (readRoomId === roomId) {
-          const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
-          if (lastMsg) {
-            setReadEventId(lastMsg.eventId);
-          }
-        }
-      }
-
-      // Xử lý delivered status
-      if (content.presence === "online" && content.statusMsg?.startsWith("delivered:")) {
-        const [_, deliveredRoomId] = content.statusMsg.split(":");
-        if (deliveredRoomId === roomId) {
-          const lastMsg = messages.filter((m) => m.sender === currentUserId).at(-1);
-          if (lastMsg) {
-            setDeliveredEventId(lastMsg.eventId);
-          }
-        }
-      }
-    };
-
-    const presence = PresenceService.getInstance();
-    presence.onPresenceEvent(handlePresence);
-    return () => presence.offPresenceEvent(handlePresence);
-  }, [roomId, messages, matrixClient]);
-
-  useEffect(() => {
     const storedDelivered = localStorage.getItem(`delivered-${roomId}`);
     if (storedDelivered) setDeliveredEventId(storedDelivered);
 
@@ -227,6 +197,166 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
       localStorage.setItem(`read-${roomId}`, readEventId);
     }
   }, [readEventId, roomId]);
+
+  // Listen for presence events to update delivered/read statuses in real time
+  useEffect(() => {
+    if (members.length !== 2) return;
+    const otherUserId = members.find(m => m.userId !== currentUserId)?.userId;
+    if (!otherUserId) return;
+
+    const handlePresenceEvent = (event: import("matrix-js-sdk").MatrixEvent) => {
+      if (event.getType() !== "m.presence") return;
+      if (event.getSender() !== otherUserId) return;
+      const content = event.getContent();
+      const lastOwnMsg = messages.filter(m => m.sender === currentUserId).at(-1);
+      if (!lastOwnMsg) return;
+
+      // Read: if statusMsg is exactly 'read:roomId'
+      if (content.statusMsg === `read:${roomId}`) {
+        if (readEventId !== lastOwnMsg.eventId) {
+          setReadEventId(lastOwnMsg.eventId);
+          localStorage.setItem(`read-${roomId}`, lastOwnMsg.eventId);
+        }
+        // Also clear delivered if read is set
+        if (deliveredEventId !== null) {
+          setDeliveredEventId(null);
+          localStorage.removeItem(`delivered-${roomId}`);
+        }
+      } else if (content.presence === "online") {
+        // Delivered: if online but not in the room and not read
+        if (readEventId !== lastOwnMsg.eventId && deliveredEventId !== lastOwnMsg.eventId) {
+          setDeliveredEventId(lastOwnMsg.eventId);
+          localStorage.setItem(`delivered-${roomId}`, lastOwnMsg.eventId);
+        }
+      }
+    };
+    const presenceService = PresenceService.getInstance();
+    presenceService.onPresenceEvent(handlePresenceEvent);
+    return () => {
+      presenceService.offPresenceEvent(handlePresenceEvent);
+    };
+  }, [
+    members.length,
+    members.map(m => m.userId).join(','),
+    messages.length,
+    messages.at(-1)?.eventId,
+    currentUserId,
+    deliveredEventId,
+    readEventId,
+    roomId
+  ]);
+
+  // Real-time read status: listen for receipt events
+  useEffect(() => {
+    if (!matrixClient || !roomId) return;
+    const room = matrixClient.getRoom(roomId);
+    if (!room) return;
+
+    const handleReceipt = () => {
+      const lastOwnMsg = messages.filter(m => m.sender === currentUserId).at(-1);
+      if (!lastOwnMsg) return;
+
+      const event = room.findEventById
+        ? room.findEventById(lastOwnMsg.eventId)
+        : room.getLiveTimeline().getEvents().find(e => e.getId() === lastOwnMsg.eventId);
+      if (!event) return;
+
+      const receipts = room.getReceiptsForEvent(event);
+      const otherUser = members.find(m => m.userId !== currentUserId);
+      const isRead = receipts && otherUser && receipts.some(r => r.userId === otherUser.userId);
+
+      if (isRead) {
+        if (readEventId !== lastOwnMsg.eventId) {
+          setReadEventId(lastOwnMsg.eventId);
+          localStorage.setItem(`read-${roomId}`, lastOwnMsg.eventId);
+        }
+      } else if (readEventId === lastOwnMsg.eventId) {
+        setReadEventId(null);
+        localStorage.removeItem(`read-${roomId}`);
+      }
+    };
+
+    // @ts-expect-error: Matrix SDK event name is a string
+    room.on('Room.receipt', handleReceipt);
+    // Call once on mount to set initial state
+    handleReceipt();
+    return () => {
+      // @ts-expect-error: Matrix SDK event name is a string
+      room.off('Room.receipt', handleReceipt);
+    };
+  }, [
+    matrixClient,
+    roomId,
+    messages.length,
+    messages.at(-1)?.eventId,
+    currentUserId,
+    readEventId,
+    members.map(m => m.userId).join(',')
+  ]);
+
+  // Set presence statusMsg to 'read:roomId' when entering the room, clear on leave
+  useEffect(() => {
+    PresenceService.getInstance().updatePresence(SetPresence.Online, `read:${roomId}`);
+    return () => {
+      PresenceService.getInstance().updatePresence(SetPresence.Online, "");
+    };
+  }, [roomId]);
+
+  // On B's client: send a read receipt for the last message when viewing the room
+  useEffect(() => {
+    if (!matrixClient || !roomId || messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg) {
+      const room = matrixClient.getRoom(roomId);
+      if (room) {
+        const event = room.findEventById
+          ? room.findEventById(lastMsg.eventId)
+          : room.getLiveTimeline().getEvents().find(e => e.getId() === lastMsg.eventId);
+        if (event) {
+          matrixClient.sendReadReceipt(event);
+        }
+      }
+    }
+  }, [matrixClient, roomId, messages.length, messages.at(-1)?.eventId]);
+
+  // Listen for typing events from the other user
+  useEffect(() => {
+    if (!matrixClient || !roomId || members.length !== 2) return;
+    const otherUser = members.find(m => m.userId !== currentUserId);
+    if (!otherUser) return;
+
+    const handleTyping = (_event: MatrixEvent, member: RoomMember) => {
+      if (member.userId === otherUser.userId) {
+        setOtherUserTyping(!!member.typing);
+      }
+    };
+    matrixClient.on(RoomMemberEvent.Typing, handleTyping);
+    return () => {
+      matrixClient.off(RoomMemberEvent.Typing, handleTyping);
+    };
+  }, [matrixClient, roomId, members, currentUserId]);
+
+  // Helper to send typing event
+  const sendTyping = (isTyping: boolean) => {
+    if (!matrixClient || !roomId) return;
+    const now = Date.now();
+    // Only send if state changes or every 3 seconds
+    if (
+      isTyping ||
+      now - lastTypingSentRef.current > 3000
+    ) {
+      matrixClient.sendTyping(roomId, isTyping, 5000); // 5s timeout
+      lastTypingSentRef.current = now;
+    }
+  };
+
+  // Clean up typing on unmount
+  useEffect(() => {
+    if (!matrixClient || !roomId) return;
+    return () => {
+      matrixClient.sendTyping(roomId, false, 1000);
+    };
+  }, [matrixClient, roomId]);
 
   const handleSendMessage = async () => {
     if (!messageText.trim()) return;
@@ -362,6 +492,17 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     }
   };
 
+  // In the message input, trigger typing events
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMessageText(e.target.value);
+    sendTyping(true);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      sendTyping(false);
+    }, 4000); // Stop typing after 4s of inactivity
+  };
+
+  // Only after all hooks and currentUserId, do conditional returns
   if (!isClientReady) {
     return (
       <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
@@ -370,12 +511,24 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     );
   }
 
-  const currentUserId = matrixClient.getUserId();
   if (!currentUserId) {
     console.warn("No user logged in, redirecting to login");
     router.push("/auth/login");
     return null;
   }
+
+  // Deduplicate messages by eventId (robust)
+  const dedupeMessages = (msgs: ChatMessage[]) => {
+    const seen = new Set();
+    return msgs.filter((msg) => {
+      if (seen.has(msg.eventId)) return false;
+      seen.add(msg.eventId);
+      return true;
+    });
+  };
+
+  // Apply deduplication before rendering
+  const dedupedMessages = dedupeMessages(messages);
 
   return (
     <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
@@ -405,7 +558,7 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               {roomName}
             </h1>
           </div>
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center gap-5">
             <button
               onClick={() => {
                 const newState = !isSearchOpen;
@@ -419,76 +572,27 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               className="text-gray-600 hover:text-gray-800"
               title="Tìm kiếm"
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"
-                />
-              </svg>
+              <FiSearch size={24} />
             </button>
-
             <button
               onClick={handleStartVoiceCall}
               className="text-gray-600 hover:text-green-800"
               title="Cuộc gọi thoại"
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                />
-              </svg>
+              <FiPhone size={24} />
             </button>
             <button
               onClick={handleStartVideoCall}
               className="text-gray-600 hover:text-green-800"
               title="Cuộc gọi video"
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M4 6h8a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2z"
-                />
-              </svg>
+              <FiVideo size={24} />
             </button>
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
               className="text-gray-600 hover:text-gray-800"
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              </svg>
+              <FiMoreVertical size={24} />
             </button>
           </div>
         </header>
@@ -514,18 +618,8 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               results={searchResults}
               hasSearched={hasSearched}
               onSelect={(eventId) => {
-                const element = document.getElementById(`msg-${eventId}`);
-                if (element) {
-                  element.classList.add("bg-yellow-100");
-                  element.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center",
-                  });
-                  setIsSearchOpen(false);
-                  setTimeout(() => {
-                    element.classList.remove("bg-yellow-100");
-                  }, 1500);
-                }
+                setScrollToEventId(eventId);
+                setIsSearchOpen(false);
               }}
             />
           </div>
@@ -555,112 +649,92 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
               </div>
             )}
             <MessageList
-              messages={messages}
+              messages={dedupedMessages}
               currentUserId={currentUserId}
               deliveredEventId={deliveredEventId}
               readEventId={readEventId}
               setPreviewImage={setPreviewImage}
+              scrollToEventId={scrollToEventId}
+              setScrollToEventId={setScrollToEventId}
             />
           </>
         )}
 
         {/* Footer - Only render when there is no active call */}
         {!state.activeCall && (
-          <footer className="bg-white p-4 shadow-inner">
-            {selectedImage && (
-              <div className="mb-2 relative">
-                <img
-                  src={URL.createObjectURL(selectedImage)}
-                  alt="Selected"
-                  className="max-h-32 rounded-lg"
-                />
-                <button
-                  onClick={() => setSelectedImage(null)}
-                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+          <>
+            {otherUserTyping && (
+              <div className="px-5 pb-2 text-sm text-gray-500 animate-pulse">Typing ...</div>
             )}
-            <div className="flex items-center space-x-3">
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                  ref={fileInputRef}
-                />
-                <svg
-                  className="w-6 h-6 text-gray-600 hover:text-gray-800"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+            <footer className="bg-white p-4 shadow-inner">
+              {selectedImage && (
+                <div className="mb-2 relative">
+                  <img
+                    src={URL.createObjectURL(selectedImage)}
+                    alt="Selected"
+                    className="max-h-32 rounded-lg"
                   />
-                </svg>
-              </label>
-              <input
-                type="text"
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder="Nhập tin nhắn..."
-                className="flex-1 rounded-full border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-              />
-              {selectedImage ? (
-                <button
-                  onClick={handleSendImage}
-                  disabled={isUploading}
-                  className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition disabled:opacity-50"
-                >
-                  {isUploading ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
-                  ) : (
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                      />
-                    </svg>
-                  )}
-                </button>
-              ) : (
-                <button
-                  onClick={handleSendMessage}
-                  className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                  <button
+                    onClick={() => setSelectedImage(null)}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                    />
-                  </svg>
-                </button>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
               )}
-            </div>
-          </footer>
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-2 mr-2">
+                  <label className="cursor-pointer flex items-center">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                      ref={fileInputRef}
+                    />
+                    <FiImage className="w-7 h-7 text-gray-500 hover:text-blue-500 transition" />
+                  </label>
+                </div>
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    value={messageText}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                    placeholder="Nhập tin nhắn..."
+                    className="w-full bg-white rounded-full shadow border border-gray-200 px-5 py-2 text-gray-800 placeholder-gray-400 focus:ring-0 focus:outline-none border-none text-base"
+                    style={{ minHeight: 38 }}
+                  />
+                </div>
+                <div className="flex items-center ml-2">
+                  {selectedImage ? (
+                    <button
+                      onClick={handleSendImage}
+                      disabled={isUploading}
+                      className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition disabled:opacity-50 flex items-center justify-center shadow-md"
+                      style={{ width: 42, height: 42 }}
+                    >
+                      {isUploading ? (
+                        <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-white"></div>
+                      ) : (
+                        <IoSend className="w-6 h-6" />
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleSendMessage}
+                      className="bg-blue-500 text-white rounded-full p-3 hover:bg-blue-600 transition flex items-center justify-center shadow-md"
+                      style={{ width: 42, height: 42 }}
+                    >
+                      <IoSend className="w-6 h-6" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </footer>
+          </>
         )}
       </div>
 
