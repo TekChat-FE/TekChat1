@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/app/chat/[roomId]/chatView.tsx
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
