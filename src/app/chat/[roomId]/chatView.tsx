@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @next/next/no-img-element */
 // src/app/chat/[roomId]/chatView.tsx
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -176,7 +178,6 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
     const handlePresence = (event: MatrixEvent) => {
       if (event.getType() !== "m.presence") return;
       
-      const userId = event.getSender()!;
       const content = event.getContent();
       
       // Xử lý read status
