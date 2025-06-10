@@ -60,7 +60,7 @@ const VoiceCallUI: React.FC = () => {
 
   return (
     <div
-      className="h-screen flex flex-col justify-between items-center"
+      className="h-full flex flex-col justify-between items-center"
       style={{
         background: 'linear-gradient(135deg, #75e377 0%, #45d2db 100%)',
       }}

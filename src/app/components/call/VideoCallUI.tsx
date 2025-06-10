@@ -80,7 +80,7 @@ const VideoCallUI: React.FC = () => {
 
   return (
     <div
-      className="h-screen flex flex-col justify-between items-center relative overflow-hidden"
+      className="h-full flex flex-col justify-between items-center relative overflow-hidden"
       style={{
         background: isCameraOn
           ? 'black'

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { PresenceService } from '@/app/services/matrix/presenceService';
 import roomService from '@/app/services/matrix/roomService';
+import { FiSearch, FiPhone, FiVideo } from 'react-icons/fi';
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -16,6 +17,9 @@ interface ChatSidebarProps {
   onInviteMember: () => void;
   onDeleteRoom: () => void;
   isGroup: boolean;
+  onStartVoiceCall: () => void;
+  onStartVideoCall: () => void;
+  onSearchOpen: () => void;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -27,6 +31,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   onInviteMember,
   onDeleteRoom,
   isGroup,
+  onStartVoiceCall,
+  onStartVideoCall,
+  onSearchOpen,
 }) => {
   const t = useTranslations('ChatSidebar');
   const [presenceData, setPresenceData] = useState<Record<string, { presence: string; statusMsg?: string }>>({});
@@ -119,6 +126,39 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         className="absolute top-0 right-0 h-full bg-white shadow-lg w-full max-w-md z-20 p-6 flex flex-col"
         style={{ right: 'calc(85.3% - 50vw)' }}
       >
+        {/* Top action row */}
+        <div className="flex items-center gap-5 mb-4">
+          <button
+            onClick={() => {
+              onSearchOpen();
+              onClose();
+            }}
+            className="text-gray-600 hover:text-gray-800"
+            title="Tìm kiếm"
+          >
+            <FiSearch size={24} />
+          </button>
+          <button
+            onClick={() => {
+              onStartVoiceCall();
+              onClose();
+            }}
+            className="text-gray-600 hover:text-green-800"
+            title="Cuộc gọi thoại"
+          >
+            <FiPhone size={24} />
+          </button>
+          <button
+            onClick={() => {
+              onStartVideoCall();
+              onClose();
+            }}
+            className="text-gray-600 hover:text-green-800"
+            title="Cuộc gọi video"
+          >
+            <FiVideo size={24} />
+          </button>
+        </div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('title')}</h2>
 
         <ul className="space-y-3 flex-1 overflow-y-auto">
