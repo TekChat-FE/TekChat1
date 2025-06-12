@@ -153,7 +153,11 @@
     "errorInvalidUserId": "Invalid User ID format (e.g., @user:matrix.org)",
     "errorUserAlreadyInRoom": "This user is already in the room!",
     "errorUserNotFound": "User not found!",
-    "errorCheckingUser": "Error checking user. Please try again!"
+    "errorCheckingUser": "Error checking user. Please try again!",
+    "media": "Media",
+    "images": "images",
+    "noMedia": "No images in this conversation yet",
+    "members": "Members"
   },
   "CallModal": {
     "incomingVideoCall": "Incoming video call from {callerName}",

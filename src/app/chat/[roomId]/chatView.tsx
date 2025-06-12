@@ -16,7 +16,7 @@ import SearchList from "@/app/components/chat/SearchList";
 import { PresenceService } from "@/app/services/matrix/presenceService";
 import authService from "@/app/services/auth/authService";
 import { SetPresence } from "matrix-js-sdk";
-import { FiMoreVertical, FiImage } from "react-icons/fi";
+import { FiMoreVertical, FiImage, FiSearch } from "react-icons/fi";
 import { IoSend } from "react-icons/io5";
 
 interface ChatViewProps {
@@ -54,6 +54,13 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTypingSentRef = useRef<number>(0);
   const [showEmptySearchError, setShowEmptySearchError] = useState(false);
+  const mediaMessages = messages
+    .filter(msg => msg.isImage && typeof msg.imageUrl === 'string')
+    .map(msg => ({
+      eventId: msg.eventId,
+      imageUrl: msg.imageUrl as string,
+      timestamp: String(msg.timestamp),
+    }));
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -561,10 +568,18 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
             </div>
             <div className="flex items-center gap-5">
               <button
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="text-gray-600 hover:text-gray-800"
+                onClick={() => setIsSearchOpen(true)}
+                className="p-2 text-gray-600 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                title="Tìm kiếm"
               >
-                <FiMoreVertical size={24} />
+                <FiSearch size={22} />
+              </button>
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-lg hover:bg-blue-600 transition-colors"
+                title={roomName}
+              >
+                {roomName ? roomName.charAt(0).toUpperCase() : '?'}
               </button>
             </div>
           </header>
@@ -744,6 +759,8 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           onSearchOpen={() => {
             setIsSearchOpen(true);
           }}
+          mediaMessages={mediaMessages}
+          onPreviewImage={setPreviewImage}
         />
       )}
 
