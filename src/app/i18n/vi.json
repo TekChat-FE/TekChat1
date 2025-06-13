@@ -148,7 +148,11 @@
     "errorInvalidUserId": "Định dạng User ID không hợp lệ (ví dụ: @user:matrix.org)",
     "errorUserAlreadyInRoom": "Người dùng này đã có trong phòng!",
     "errorUserNotFound": "Không tìm thấy người dùng này!",
-    "errorCheckingUser": "Có lỗi khi kiểm tra người dùng. Vui lòng thử lại!"
+    "errorCheckingUser": "Có lỗi khi kiểm tra người dùng. Vui lòng thử lại!",
+    "media": "Hình ảnh",
+    "images": "hình",
+    "noMedia": "Chưa có hình ảnh nào trong cuộc trò chuyện",
+    "members": "Thành viên"
   },
   "CallModal": {
     "incomingVideoCall": "Cuộc gọi video đến từ {callerName}",

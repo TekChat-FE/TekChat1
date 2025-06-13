@@ -19,7 +19,7 @@ import SearchList from "@/app/components/chat/SearchList";
 import { PresenceService } from "@/app/services/matrix/presenceService";
 import authService from "@/app/services/auth/authService";
 import { SetPresence } from "matrix-js-sdk";
-import { FiSearch, FiPhone, FiVideo, FiMoreVertical, FiImage } from "react-icons/fi";
+import { FiMoreVertical, FiImage, FiSearch } from "react-icons/fi";
 import { IoSend } from "react-icons/io5";
 
 interface ChatViewProps {
@@ -56,6 +56,14 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastTypingSentRef = useRef<number>(0);
+  const [showEmptySearchError, setShowEmptySearchError] = useState(false);
+  const mediaMessages = messages
+    .filter(msg => msg.isImage && typeof msg.imageUrl === 'string')
+    .map(msg => ({
+      eventId: msg.eventId,
+      imageUrl: msg.imageUrl as string,
+      timestamp: String(msg.timestamp),
+    }));
 
   const fetchRoomData = useCallback(async () => {
     try {
@@ -534,97 +542,96 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
 
   return (
     <div className="flex h-screen bg-gray-50 text-gray-800 justify-center items-center">
-      <div className="flex flex-col w-full max-w-md h-full bg-white shadow-lg">
+      <div className="flex flex-col w-full max-w-md h-full bg-white shadow-lg relative p-0 m-0 overflow-hidden">
         {/* Nội dung khung chat */}
-        <header className="bg-white shadow-md p-4 flex items-center justify-between">
-          <div className="flex items-center">
-            <button
-              onClick={() => router.back()}
-              className="text-gray-600 hover:text-gray-800 mr-3"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+        {!state.activeCall && (
+          <header className="bg-white shadow-md p-4 flex items-center justify-between">
+            <div className="flex items-center">
+              <button
+                onClick={() => router.back()}
+                className="text-gray-600 hover:text-gray-800 mr-3"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            <h1 className="text-xl font-bold text-gray-900 truncate max-w-[180px] overflow-hidden whitespace-nowrap">
-              {roomName}
-            </h1>
-          </div>
-          <div className="flex items-center gap-5">
-            <button
-              onClick={() => {
-                const newState = !isSearchOpen;
-                setIsSearchOpen(newState);
-                if (newState) {
-                  setSearchTerm("");
-                  setSearchResults([]);
-                  setHasSearched(false);
-                }
-              }}
-              className="text-gray-600 hover:text-gray-800"
-              title="Tìm kiếm"
-            >
-              <FiSearch size={24} />
-            </button>
-            <button
-              onClick={handleStartVoiceCall}
-              className="text-gray-600 hover:text-green-800"
-              title="Cuộc gọi thoại"
-            >
-              <FiPhone size={24} />
-            </button>
-            <button
-              onClick={handleStartVideoCall}
-              className="text-gray-600 hover:text-green-800"
-              title="Cuộc gọi video"
-            >
-              <FiVideo size={24} />
-            </button>
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="text-gray-600 hover:text-gray-800"
-            >
-              <FiMoreVertical size={24} />
-            </button>
-          </div>
-        </header>
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M15 19l-7-7 7-7"
+                  />
+                </svg>
+              </button>
+              <h1 className="text-xl font-bold text-gray-900 truncate max-w-[180px] overflow-hidden whitespace-nowrap">
+                {roomName}
+              </h1>
+            </div>
+            <div className="flex items-center gap-5">
+              <button
+                onClick={() => setIsSearchOpen(true)}
+                className="p-2 text-gray-600 hover:text-blue-500 hover:bg-blue-50 rounded-full transition-colors"
+                title="Tìm kiếm"
+              >
+                <FiSearch size={22} />
+              </button>
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold text-lg hover:bg-blue-600 transition-colors"
+                title={roomName}
+              >
+                {roomName ? roomName.charAt(0).toUpperCase() : '?'}
+              </button>
+            </div>
+          </header>
+        )}
         {isSearchOpen && (
-          <div className="border-t p-2">
-            <input
-              type="text"
-              placeholder="Tìm tin nhắn..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  const results = messages.filter((msg) =>
-                    msg.body.toLowerCase().includes(searchTerm.toLowerCase())
-                  );
-                  setSearchResults(results);
-                  setHasSearched(true);
-                }
-              }}
-              className="w-full border px-3 py-2 rounded-md"
+          <>
+            {/* Backdrop to close search when clicking outside */}
+            <div
+              className="absolute inset-0 z-20 bg-transparent"
+              onClick={() => setIsSearchOpen(false)}
             />
-            <SearchList
-              results={searchResults}
-              hasSearched={hasSearched}
-              onSelect={(eventId) => {
-                setScrollToEventId(eventId);
-                setIsSearchOpen(false);
-              }}
-            />
-          </div>
+            <div className="absolute left-0 right-0 top-0 z-30 bg-white shadow-lg border-b border-gray-200 p-4 rounded-b-lg">
+              <input
+                type="text"
+                placeholder="Search messages..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    if (!searchTerm.trim()) {
+                      setHasSearched(false);
+                      setSearchResults([]);
+                      setShowEmptySearchError(true);
+                      return;
+                    }
+                    setShowEmptySearchError(false);
+                    const results = messages.filter((msg) =>
+                      msg.body.toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+                    setSearchResults(results);
+                    setHasSearched(true);
+                  }
+                }}
+                className="w-full border px-3 py-2 rounded-md mb-2"
+                autoFocus
+              />
+              {showEmptySearchError && (
+                <div className="text-gray-500 text-center mb-2">Please enter a search term.</div>
+              )}
+              <SearchList
+                results={searchResults}
+                hasSearched={hasSearched}
+                onSelect={(eventId: string) => {
+                  setScrollToEventId(eventId);
+                  setIsSearchOpen(false);
+                }}
+              />
+            </div>
+          </>
         )}
 
         {loading ? (
@@ -750,6 +757,13 @@ const ChatView: React.FC<ChatViewProps> = ({ matrixClient, roomId }) => {
           onInviteMember={handleInviteMember}
           onDeleteRoom={handleDeleteRoom}
           isGroup={isGroup}
+          onStartVoiceCall={handleStartVoiceCall}
+          onStartVideoCall={handleStartVideoCall}
+          onSearchOpen={() => {
+            setIsSearchOpen(true);
+          }}
+          mediaMessages={mediaMessages}
+          onPreviewImage={setPreviewImage}
         />
       )}
 

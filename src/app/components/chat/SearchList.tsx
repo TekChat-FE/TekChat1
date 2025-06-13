@@ -10,7 +10,7 @@ interface SearchListProps {
 
   export default function SearchList({ results, hasSearched, onSelect }: SearchListProps) {
     if (hasSearched && results.length === 0) {
-        return <div className="p-4 text-center text-gray-500">Không tìm thấy kết quả</div>;
+        return <div className="p-4 text-center text-gray-500">No results found</div>;
       }   
 
   return (
